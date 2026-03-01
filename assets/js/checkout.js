@@ -24,9 +24,153 @@
 
             // Re-init after WooCommerce updates checkout fragments.
             $(document.body).on('updated_checkout', function () {
-                // Re-bind if needed; the select should persist.
+                cpw.initDropdown();
+            });
+
+            this.initDropdown();
+        },
+
+        // ── Custom dropdown ──────────────────────────────────────────
+
+        initDropdown: function () {
+            var self = this;
+            var $dropdown = $('.cpw-dropdown');
+            if (!$dropdown.length) return;
+
+            var $trigger = $dropdown.find('.cpw-dropdown-trigger');
+            var $menu = $dropdown.find('.cpw-dropdown-menu');
+            var $options = $menu.find('.cpw-dropdown-option');
+
+            // Toggle on trigger click.
+            $trigger.off('click.cpw').on('click.cpw', function (e) {
+                e.preventDefault();
+                e.stopPropagation();
+                var isOpen = $dropdown.attr('aria-expanded') === 'true';
+                self.toggleDropdown(!isOpen);
+            });
+
+            // Select on option click.
+            $options.off('click.cpw').on('click.cpw', function (e) {
+                e.preventDefault();
+                e.stopPropagation();
+                self.selectOption($(this));
+            });
+
+            // Keyboard navigation on trigger.
+            $trigger.off('keydown.cpw').on('keydown.cpw', function (e) {
+                self.handleTriggerKeydown(e);
+            });
+
+            // Keyboard navigation on options.
+            $options.off('keydown.cpw').on('keydown.cpw', function (e) {
+                self.handleOptionKeydown(e);
+            });
+
+            // Close on outside click.
+            $(document).off('click.cpw-close').on('click.cpw-close', function (e) {
+                if (!$(e.target).closest('.cpw-dropdown').length) {
+                    self.toggleDropdown(false);
+                }
             });
         },
+
+        toggleDropdown: function (open) {
+            var $dropdown = $('.cpw-dropdown');
+            var $trigger = $dropdown.find('.cpw-dropdown-trigger');
+            var $menu = $dropdown.find('.cpw-dropdown-menu');
+
+            $dropdown.attr('aria-expanded', open ? 'true' : 'false');
+            $trigger.attr('aria-expanded', open ? 'true' : 'false');
+
+            if (open) {
+                $menu.addClass('cpw-dropdown-menu--open');
+                // Focus the selected option or first option.
+                var $selected = $menu.find('.cpw-dropdown-option[aria-selected="true"]');
+                if ($selected.length) {
+                    $selected.focus();
+                } else {
+                    $menu.find('.cpw-dropdown-option').first().focus();
+                }
+            } else {
+                $menu.removeClass('cpw-dropdown-menu--open');
+            }
+        },
+
+        selectOption: function ($opt) {
+            var value = $opt.data('value');
+            var name = $opt.find('.cpw-dropdown-name').text();
+            var svg = $opt.find('.cpw-dropdown-icon').html();
+
+            // Update ARIA.
+            $('.cpw-dropdown-option').attr('aria-selected', 'false');
+            $opt.attr('aria-selected', 'true');
+
+            // Update trigger display.
+            var $trigger = $('.cpw-dropdown-trigger');
+            $trigger.find('.cpw-dropdown-trigger-text').html(
+                '<span class="cpw-dropdown-icon">' + svg + '</span>' +
+                '<span class="cpw-dropdown-name">' + $('<span>').text(name).html() + '</span>'
+            );
+
+            // Set hidden input and fire change.
+            $('#cpw_network').val(value).trigger('change');
+
+            // Close dropdown and return focus.
+            this.toggleDropdown(false);
+            $trigger.focus();
+        },
+
+        handleTriggerKeydown: function (e) {
+            var key = e.key;
+            if (key === 'ArrowDown' || key === 'ArrowUp' || key === 'Enter' || key === ' ') {
+                e.preventDefault();
+                this.toggleDropdown(true);
+            } else if (key === 'Escape') {
+                this.toggleDropdown(false);
+            }
+        },
+
+        handleOptionKeydown: function (e) {
+            var key = e.key;
+            var $current = $(e.target);
+            var $allOptions = $('.cpw-dropdown-menu .cpw-dropdown-option');
+            var idx = $allOptions.index($current);
+
+            switch (key) {
+                case 'ArrowDown':
+                    e.preventDefault();
+                    if (idx < $allOptions.length - 1) {
+                        $allOptions.eq(idx + 1).focus();
+                    }
+                    break;
+                case 'ArrowUp':
+                    e.preventDefault();
+                    if (idx > 0) {
+                        $allOptions.eq(idx - 1).focus();
+                    }
+                    break;
+                case 'Home':
+                    e.preventDefault();
+                    $allOptions.first().focus();
+                    break;
+                case 'End':
+                    e.preventDefault();
+                    $allOptions.last().focus();
+                    break;
+                case 'Enter':
+                case ' ':
+                    e.preventDefault();
+                    this.selectOption($current);
+                    break;
+                case 'Escape':
+                    e.preventDefault();
+                    this.toggleDropdown(false);
+                    $('.cpw-dropdown-trigger').focus();
+                    break;
+            }
+        },
+
+        // ── Network change handler ───────────────────────────────────
 
         onNetworkChange: function () {
             var networkId = $('#cpw_network').val();

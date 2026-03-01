@@ -43,8 +43,10 @@
         const [timerSeconds, setTimerSeconds] = useState(0);
         const [txHash, setTxHash] = useState('');
         const [copiedField, setCopiedField] = useState('');
+        const [dropdownOpen, setDropdownOpen] = useState(false);
         const timerRef = useRef(null);
         const qrRef = useRef(null);
+        const dropdownRef = useRef(null);
 
         // Register payment setup handler - this fires when "Place Order" is clicked.
         useEffect(() => {
@@ -105,6 +107,17 @@
             if (!paymentData || !qrRef.current) return;
             generateQR();
         }, [paymentData]);
+
+        // Close dropdown on outside click.
+        useEffect(() => {
+            const handleClickOutside = (e) => {
+                if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+                    setDropdownOpen(false);
+                }
+            };
+            document.addEventListener('mousedown', handleClickOutside);
+            return () => document.removeEventListener('mousedown', handleClickOutside);
+        }, []);
 
         const fetchPrice = (networkId) => {
             const fiatAmount = getOrderTotal();
@@ -285,41 +298,221 @@
             };
         }, [paymentData]);
 
+        // ── Dropdown helpers ─────────────────────────────────────────
+
+        // Find the selected network object.
+        const getSelectedNet = () => {
+            for (const group of networks) {
+                for (const net of group.items) {
+                    if (net.id === selectedNetwork) return net;
+                }
+            }
+            return null;
+        };
+
+        // Flatten all options for keyboard navigation.
+        const getAllOptions = () => {
+            const all = [];
+            for (const group of networks) {
+                for (const net of group.items) {
+                    all.push(net);
+                }
+            }
+            return all;
+        };
+
+        const handleTriggerKeydown = (e) => {
+            if (e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                setDropdownOpen(true);
+            } else if (e.key === 'Escape') {
+                setDropdownOpen(false);
+            }
+        };
+
+        const handleOptionKeydown = (e, netId) => {
+            const allOpts = getAllOptions();
+            const idx = allOpts.findIndex((n) => n.id === netId);
+
+            switch (e.key) {
+                case 'ArrowDown':
+                    e.preventDefault();
+                    if (idx < allOpts.length - 1) {
+                        const nextEl = dropdownRef.current?.querySelector(
+                            '[data-value="' + allOpts[idx + 1].id + '"]'
+                        );
+                        if (nextEl) nextEl.focus();
+                    }
+                    break;
+                case 'ArrowUp':
+                    e.preventDefault();
+                    if (idx > 0) {
+                        const prevEl = dropdownRef.current?.querySelector(
+                            '[data-value="' + allOpts[idx - 1].id + '"]'
+                        );
+                        if (prevEl) prevEl.focus();
+                    }
+                    break;
+                case 'Home':
+                    e.preventDefault();
+                    if (allOpts.length) {
+                        const firstEl = dropdownRef.current?.querySelector(
+                            '[data-value="' + allOpts[0].id + '"]'
+                        );
+                        if (firstEl) firstEl.focus();
+                    }
+                    break;
+                case 'End':
+                    e.preventDefault();
+                    if (allOpts.length) {
+                        const lastEl = dropdownRef.current?.querySelector(
+                            '[data-value="' + allOpts[allOpts.length - 1].id + '"]'
+                        );
+                        if (lastEl) lastEl.focus();
+                    }
+                    break;
+                case 'Enter':
+                case ' ':
+                    e.preventDefault();
+                    setSelectedNetwork(netId);
+                    setDropdownOpen(false);
+                    break;
+                case 'Escape':
+                    e.preventDefault();
+                    setDropdownOpen(false);
+                    break;
+            }
+        };
+
         // ── Render ──────────────────────────────────────────────────
 
         const els = createElement;
+        const selectedNet = getSelectedNet();
 
-        // Network selector.
+        // Trigger button content.
+        const triggerContent = selectedNet
+            ? els(
+                  'span',
+                  { className: 'cpw-dropdown-trigger-text' },
+                  els('span', {
+                      className: 'cpw-dropdown-icon',
+                      dangerouslySetInnerHTML: { __html: selectedNet.svg || '' },
+                  }),
+                  els('span', { className: 'cpw-dropdown-name' }, selectedNet.name)
+              )
+            : els(
+                  'span',
+                  { className: 'cpw-dropdown-trigger-text' },
+                  '— Select cryptocurrency —'
+              );
+
+        // Dropdown arrow SVG.
+        const arrowSvg = els(
+            'svg',
+            {
+                className: 'cpw-dropdown-arrow',
+                viewBox: '0 0 12 12',
+                width: 12,
+                height: 12,
+                'aria-hidden': 'true',
+            },
+            els('path', { fill: '#6b7280', d: 'M6 8L1 3h10z' })
+        );
+
+        // Network selector (custom dropdown).
         const selectorEl = els(
             'div',
             { className: 'cpw-block-selector' },
             els(
                 'label',
-                { htmlFor: 'cpw-block-network', className: 'cpw-block-label' },
+                { id: 'cpw-block-network-label', className: 'cpw-block-label' },
                 'Choose a cryptocurrency:'
             ),
             els(
-                'select',
+                'div',
                 {
-                    id: 'cpw-block-network',
-                    className: 'cpw-block-select',
-                    value: selectedNetwork,
-                    onChange: (e) => setSelectedNetwork(e.target.value),
+                    className: 'cpw-dropdown',
+                    ref: dropdownRef,
+                    role: 'combobox',
+                    'aria-expanded': dropdownOpen ? 'true' : 'false',
+                    'aria-haspopup': 'listbox',
+                    'aria-labelledby': 'cpw-block-network-label',
                 },
-                els('option', { value: '' }, '— Select cryptocurrency —'),
-                ...networks.map((group) =>
-                    els(
-                        'optgroup',
-                        { label: group.group, key: group.group },
-                        ...group.items.map((net) =>
-                            els(
-                                'option',
-                                { value: net.id, key: net.id },
-                                net.icon + ' ' + net.name
-                            )
-                        )
-                    )
-                )
+                els(
+                    'button',
+                    {
+                        type: 'button',
+                        className: 'cpw-dropdown-trigger',
+                        'aria-expanded': dropdownOpen ? 'true' : 'false',
+                        onClick: (e) => {
+                            e.preventDefault();
+                            setDropdownOpen(!dropdownOpen);
+                        },
+                        onKeyDown: handleTriggerKeydown,
+                    },
+                    triggerContent,
+                    arrowSvg
+                ),
+                dropdownOpen
+                    ? els(
+                          'div',
+                          {
+                              className: 'cpw-dropdown-menu cpw-dropdown-menu--open',
+                              role: 'listbox',
+                              'aria-labelledby': 'cpw-block-network-label',
+                          },
+                          ...networks.map((group) =>
+                              els(
+                                  'div',
+                                  {
+                                      className: 'cpw-dropdown-group',
+                                      role: 'group',
+                                      'aria-label': group.group,
+                                      key: group.group,
+                                  },
+                                  els(
+                                      'div',
+                                      { className: 'cpw-dropdown-group-label' },
+                                      group.group
+                                  ),
+                                  ...group.items.map((net) =>
+                                      els(
+                                          'div',
+                                          {
+                                              className:
+                                                  'cpw-dropdown-option' +
+                                                  (net.id === selectedNetwork
+                                                      ? ' cpw-dropdown-option--selected'
+                                                      : ''),
+                                              role: 'option',
+                                              'aria-selected':
+                                                  net.id === selectedNetwork ? 'true' : 'false',
+                                              'data-value': net.id,
+                                              tabIndex: 0,
+                                              key: net.id,
+                                              onClick: () => {
+                                                  setSelectedNetwork(net.id);
+                                                  setDropdownOpen(false);
+                                              },
+                                              onKeyDown: (e) => handleOptionKeydown(e, net.id),
+                                          },
+                                          els('span', {
+                                              className: 'cpw-dropdown-icon',
+                                              dangerouslySetInnerHTML: {
+                                                  __html: net.svg || '',
+                                              },
+                                          }),
+                                          els(
+                                              'span',
+                                              { className: 'cpw-dropdown-name' },
+                                              net.name
+                                          )
+                                      )
+                                  )
+                              )
+                          )
+                      )
+                    : null
             )
         );
 

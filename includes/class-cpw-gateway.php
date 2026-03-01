@@ -233,25 +233,34 @@ class CPW_Gateway extends WC_Payment_Gateway {
         $groups = CPW_Networks::group_by_category( $enabled_networks );
 
         echo '<div id="cpw-network-selector">';
-        echo '<label for="cpw_network" style="display:block; margin-bottom:6px; font-weight:600;">Choose a cryptocurrency:</label>';
-        echo '<select name="cpw_network" id="cpw_network" class="cpw-select" required>';
-        echo '<option value="">— Select cryptocurrency —</option>';
+        echo '<label id="cpw-network-label" style="display:block; margin-bottom:6px; font-weight:600;">Choose a cryptocurrency:</label>';
+        echo '<input type="hidden" name="cpw_network" id="cpw_network" value="" />';
+        echo '<div class="cpw-dropdown" role="combobox" aria-expanded="false" aria-haspopup="listbox" aria-labelledby="cpw-network-label">';
+        echo '<button type="button" class="cpw-dropdown-trigger" aria-expanded="false">';
+        echo '<span class="cpw-dropdown-trigger-text">— Select cryptocurrency —</span>';
+        echo '<svg class="cpw-dropdown-arrow" viewBox="0 0 12 12" width="12" height="12" aria-hidden="true"><path fill="#6b7280" d="M6 8L1 3h10z"/></svg>';
+        echo '</button>';
+        echo '<div class="cpw-dropdown-menu" role="listbox" aria-labelledby="cpw-network-label" tabindex="-1">';
 
         foreach ( $groups as $group_name => $group_networks ) {
-            echo '<optgroup label="' . esc_attr( $group_name ) . '">';
+            echo '<div class="cpw-dropdown-group" role="group" aria-label="' . esc_attr( $group_name ) . '">';
+            echo '<div class="cpw-dropdown-group-label">' . esc_html( $group_name ) . '</div>';
             foreach ( $group_networks as $id => $network ) {
-                echo '<option value="' . esc_attr( $id ) . '" '
+                echo '<div class="cpw-dropdown-option" role="option" aria-selected="false" '
+                    . 'data-value="' . esc_attr( $id ) . '" '
                     . 'data-symbol="' . esc_attr( $network['symbol'] ) . '" '
                     . 'data-color="' . esc_attr( $network['color'] ) . '" '
-                    . 'data-is-evm="' . esc_attr( $network['is_evm'] ? '1' : '0' ) . '"'
-                    . '>'
-                    . esc_html( $network['icon'] . ' ' . $network['name'] )
-                    . '</option>';
+                    . 'data-is-evm="' . esc_attr( $network['is_evm'] ? '1' : '0' ) . '" '
+                    . 'tabindex="-1">';
+                echo '<span class="cpw-dropdown-icon">' . CPW_Icons::get_svg( $id ) . '</span>';
+                echo '<span class="cpw-dropdown-name">' . esc_html( $network['name'] ) . '</span>';
+                echo '</div>';
             }
-            echo '</optgroup>';
+            echo '</div>';
         }
 
-        echo '</select>';
+        echo '</div>';
+        echo '</div>';
         echo '</div>';
 
         // Payment details area (populated by JS after network selection).

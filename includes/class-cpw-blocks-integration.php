@@ -119,6 +119,7 @@ class CPW_Blocks_Integration extends AbstractPaymentMethodType {
                     'icon'   => $network['icon'],
                     'color'  => $network['color'],
                     'is_evm' => $network['is_evm'],
+                    'svg'    => CPW_Icons::get_svg( $id ),
                 ];
             }
             $result[] = [

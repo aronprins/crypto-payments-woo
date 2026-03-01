@@ -47,6 +47,7 @@ function cpw_init() {
     }
 
     require_once CPW_PLUGIN_DIR . 'includes/class-cpw-networks.php';
+    require_once CPW_PLUGIN_DIR . 'includes/class-cpw-icons.php';
     require_once CPW_PLUGIN_DIR . 'includes/class-cpw-price-converter.php';
     require_once CPW_PLUGIN_DIR . 'includes/class-cpw-gateway.php';
     require_once CPW_PLUGIN_DIR . 'includes/class-cpw-verifier.php';
