@@ -1,0 +1,335 @@
+/**
+ * Crypto Payments for WooCommerce - Block Checkout Styles
+ */
+
+/* ── Wrapper ───────────────────────────────────────────────────────── */
+.cpw-block-wrapper {
+    padding: 4px 0;
+}
+
+/* ── Selector ──────────────────────────────────────────────────────── */
+.cpw-block-selector {
+    margin-bottom: 16px;
+}
+
+.cpw-block-label {
+    display: block;
+    margin-bottom: 6px;
+    font-weight: 600;
+    font-size: 14px;
+    color: #1f2937;
+}
+
+.cpw-block-select {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid #d1d5db;
+    border-radius: 8px;
+    font-size: 15px;
+    background: #fff;
+    cursor: pointer;
+    transition: border-color 0.2s;
+    -webkit-appearance: none;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%236b7280' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    padding-right: 32px;
+}
+
+.cpw-block-select:focus {
+    border-color: #7c3aed;
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.1);
+}
+
+/* ── Payment info ──────────────────────────────────────────────────── */
+.cpw-block-payment-info {
+    background: #fafafa;
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+    padding: 20px;
+    margin-top: 8px;
+}
+
+/* ── Step headers ───────────────────────────────────────────────── */
+.cpw-block-step-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 14px;
+    font-weight: 600;
+    color: #374151;
+    margin-bottom: 8px;
+    margin-top: 16px;
+}
+
+.cpw-block-step-header:first-child {
+    margin-top: 0;
+}
+
+.cpw-block-step-num {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+    background: #7c3aed;
+    color: #fff;
+    border-radius: 50%;
+    font-size: 13px;
+    font-weight: 700;
+    flex-shrink: 0;
+}
+
+/* ── Amount box ────────────────────────────────────────────────────── */
+.cpw-block-amount-box {
+    text-align: center;
+    margin-bottom: 20px;
+    padding: 16px;
+    background: #fff;
+    border-radius: 8px;
+    border: 1px solid #e5e7eb;
+}
+
+.cpw-block-sublabel {
+    font-size: 12px;
+    color: #6b7280;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 6px;
+    font-weight: 600;
+}
+
+.cpw-block-amount-value {
+    font-size: 26px;
+    font-weight: 700;
+    color: #111;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    flex-wrap: wrap;
+    line-height: 1.3;
+}
+
+.cpw-block-amount-num {
+    word-break: break-all;
+}
+
+.cpw-block-amount-sym {
+    color: #6b7280;
+    font-weight: 600;
+}
+
+.cpw-block-fiat-equiv {
+    font-size: 14px;
+    color: #6b7280;
+    margin-top: 4px;
+}
+
+/* ── Address box ───────────────────────────────────────────────────── */
+.cpw-block-address-box {
+    text-align: center;
+    margin-bottom: 20px;
+    padding: 16px;
+    background: #fff;
+    border-radius: 8px;
+    border: 1px solid #e5e7eb;
+}
+
+.cpw-block-qr {
+    display: flex;
+    justify-content: center;
+    margin: 12px 0;
+}
+
+.cpw-block-qr canvas,
+.cpw-block-qr img {
+    border-radius: 8px;
+    border: 4px solid #fff;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.cpw-block-address-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin-top: 8px;
+    flex-wrap: wrap;
+}
+
+.cpw-block-address {
+    font-size: 12px;
+    word-break: break-all;
+    background: #f3f4f6;
+    padding: 6px 10px;
+    border-radius: 6px;
+    color: #374151;
+    max-width: 320px;
+    display: inline-block;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+/* ── Copy button ───────────────────────────────────────────────────── */
+.cpw-block-copy-btn {
+    background: none;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    padding: 4px 8px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: all 0.2s;
+    flex-shrink: 0;
+    line-height: 1;
+}
+
+.cpw-block-copy-btn:hover {
+    background: #f3f4f6;
+    border-color: #9ca3af;
+}
+
+/* ── Timer ─────────────────────────────────────────────────────────── */
+.cpw-block-timer {
+    text-align: center;
+    font-size: 14px;
+    color: #6b7280;
+    margin-bottom: 16px;
+    padding: 10px;
+    background: #fffbeb;
+    border-radius: 8px;
+    border: 1px solid #fde68a;
+}
+
+.cpw-block-timer strong {
+    color: #92400e;
+    font-variant-numeric: tabular-nums;
+}
+
+.cpw-block-timer.warning {
+    background: #fef2f2;
+    border-color: #fecaca;
+}
+
+.cpw-block-timer.warning strong {
+    color: #dc2626;
+}
+
+.cpw-block-timer.expired {
+    background: #fef2f2;
+    border-color: #fecaca;
+    color: #991b1b;
+}
+
+.cpw-block-refresh-btn {
+    margin-top: 6px;
+    padding: 6px 16px;
+    background: #7c3aed;
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 13px;
+    display: inline-block;
+}
+
+.cpw-block-refresh-btn:hover {
+    background: #6d28d9;
+}
+
+/* ── TX hash ───────────────────────────────────────────────────────── */
+.cpw-block-tx-hash {
+    margin-top: 0;
+}
+
+.cpw-block-tx-input {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid #d1d5db;
+    border-radius: 8px;
+    font-size: 14px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    margin-bottom: 4px;
+    box-sizing: border-box;
+}
+
+.cpw-block-tx-input:focus {
+    border-color: #7c3aed;
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.1);
+}
+
+.cpw-block-tx-hint {
+    color: #6b7280;
+    font-size: 12px;
+}
+
+/* ── Loading ───────────────────────────────────────────────────────── */
+.cpw-block-loading {
+    text-align: center;
+    padding: 24px;
+    color: #6b7280;
+    background: #fafafa;
+    border-radius: 10px;
+    border: 1px solid #e5e7eb;
+}
+
+.cpw-block-spinner {
+    display: inline-block;
+    width: 18px;
+    height: 18px;
+    border: 3px solid #e5e7eb;
+    border-top: 3px solid #7c3aed;
+    border-radius: 50%;
+    animation: cpw-block-spin 0.8s linear infinite;
+    vertical-align: middle;
+    margin-right: 8px;
+}
+
+@keyframes cpw-block-spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* ── Error ─────────────────────────────────────────────────────────── */
+.cpw-block-error {
+    text-align: center;
+    padding: 20px;
+    color: #dc2626;
+    background: #fef2f2;
+    border-radius: 10px;
+    border: 1px solid #fecaca;
+}
+
+.cpw-block-retry-btn {
+    display: inline-block;
+    margin-top: 10px;
+    padding: 6px 16px;
+    background: #7c3aed;
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 13px;
+}
+
+.cpw-block-retry-btn:hover {
+    background: #6d28d9;
+}
+
+/* ── Responsive ────────────────────────────────────────────────────── */
+@media (max-width: 480px) {
+    .cpw-block-amount-value {
+        font-size: 20px;
+    }
+
+    .cpw-block-address {
+        font-size: 11px;
+        max-width: 240px;
+    }
+
+    .cpw-block-payment-info {
+        padding: 14px;
+    }
+}
