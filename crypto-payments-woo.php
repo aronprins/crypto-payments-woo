@@ -57,6 +57,7 @@ function cpw_init() {
     require_once CPW_PLUGIN_DIR . 'includes/class-cpw-ajax.php';
     require_once CPW_PLUGIN_DIR . 'includes/class-cpw-frontend.php';
     require_once CPW_PLUGIN_DIR . 'includes/class-cpw-admin.php';
+    require_once CPW_PLUGIN_DIR . 'includes/class-cpw-shortcode.php';
 
     // Register the payment gateway with WooCommerce.
     add_filter( 'woocommerce_payment_gateways', function ( $gateways ) {
@@ -69,6 +70,7 @@ function cpw_init() {
     new CPW_Ajax();
     new CPW_Frontend();
     new CPW_Admin();
+    new CPW_Shortcode();
 }
 add_action( 'plugins_loaded', 'cpw_init' );
 
