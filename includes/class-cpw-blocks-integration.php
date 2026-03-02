@@ -98,13 +98,43 @@ class CPW_Blocks_Integration extends AbstractPaymentMethodType {
         return [
             'title'       => $this->get_setting( 'title', 'Pay with Crypto' ),
             'description' => $this->get_setting( 'description', 'Pay with Bitcoin, Ethereum, Solana, stablecoins, and more.' ),
-            'supports'    => [ 'products' ],
+            'supports'    => $this->get_supported_features(),
             'networks'    => $this->get_enabled_networks_for_js(),
             'ajax_url'       => admin_url( 'admin-ajax.php' ),
             'nonce_price'    => wp_create_nonce( 'cpw_get_crypto_price' ),
             'nonce_confirm'  => wp_create_nonce( 'cpw_confirm_payment' ),
             'payment_window' => isset( $this->settings['payment_window'] ) ? absint( $this->settings['payment_window'] ) : 15,
         ];
+    }
+
+    /**
+     * Returns the list of supported features for the Blocks payment method.
+     *
+     * Must stay in sync with CPW_Gateway::$supports so that the Block Checkout
+     * and Classic Checkout behave identically — especially for WooCommerce
+     * Subscriptions, which injects 'subscriptions' as a required feature into
+     * the Blocks cart API when subscription products are in the cart.
+     *
+     * @return array
+     */
+    public function get_supported_features() {
+        $features = [ 'products' ];
+
+        if ( class_exists( 'WC_Subscriptions' ) || function_exists( 'wcs_get_subscriptions_for_renewal_order' ) ) {
+            $features = array_merge( $features, [
+                'subscriptions',
+                'subscription_cancellation',
+                'subscription_suspension',
+                'subscription_reactivation',
+                'subscription_amount_changes',
+                'subscription_date_changes',
+                'subscription_payment_method_change_customer',
+                'subscription_payment_method_change_admin',
+                'multiple_subscriptions',
+            ] );
+        }
+
+        return $features;
     }
 
     /**
