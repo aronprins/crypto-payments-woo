@@ -78,7 +78,7 @@ class CPW_Verifier {
     public function add_cron_schedule( $schedules ) {
         $schedules['cpw_verification_interval'] = [
             'interval' => self::CRON_INTERVAL,
-            'display'  => 'Every 3 minutes (Crypto Payment Verification)',
+            'display'  => __( 'Every 3 minutes (Crypto Payment Verification)', 'crypto-payments-woo' ),
         ];
         return $schedules;
     }
@@ -270,13 +270,15 @@ class CPW_Verifier {
                 }
 
                 $note = sprintf(
-                    '✅ Crypto payment verified on-chain. %s %s received with %d confirmations.',
+                    /* translators: 1: crypto amount, 2: crypto symbol, 3: number of confirmations */
+                    __( 'Crypto payment verified on-chain. %1$s %2$s received with %3$d confirmations.', 'crypto-payments-woo' ),
                     $context['crypto_amount'],
                     $context['network']['symbol'] ?? '',
                     $result['confirmations'] ?? 0
                 );
                 if ( $explorer_url ) {
-                    $note .= sprintf( ' <a href="%s" target="_blank">View on explorer</a>', esc_url( $explorer_url ) );
+                    /* translators: %s: block explorer URL */
+                    $note .= sprintf( ' <a href="%s" target="_blank">' . __( 'View on explorer', 'crypto-payments-woo' ) . '</a>', esc_url( $explorer_url ) );
                 }
 
                 $order->add_order_note( $note );
@@ -292,7 +294,8 @@ class CPW_Verifier {
                     $order->update_meta_data( '_cpw_tx_hash', $result['tx_hash'] );
                 }
                 $order->add_order_note( sprintf(
-                    '⏳ Payment transaction found (%d/%d confirmations). Waiting for more confirmations.',
+                    /* translators: 1: current confirmations, 2: required confirmations */
+                    __( 'Payment transaction found (%1$d/%2$d confirmations). Waiting for more confirmations.', 'crypto-payments-woo' ),
                     $result['confirmations'] ?? 0,
                     $result['required_confirmations'] ?? 0
                 ), false );
@@ -305,8 +308,9 @@ class CPW_Verifier {
 
             case 'failed':
                 // Transaction found but failed (reverted, wrong amount, etc.).
-                $order->add_order_note( '❌ Crypto payment verification failed: ' . ( $result['message'] ?? 'Unknown error.' ) );
-                $order->update_status( 'failed', 'Crypto payment verification failed.' );
+                /* translators: %s: failure reason */
+                $order->add_order_note( sprintf( __( 'Crypto payment verification failed: %s', 'crypto-payments-woo' ), ( $result['message'] ?? __( 'Unknown error.', 'crypto-payments-woo' ) ) ) );
+                $order->update_status( 'failed', __( 'Crypto payment verification failed.', 'crypto-payments-woo' ) );
                 $order->save();
                 cpw_log( sprintf( 'Order #%d: payment FAILED - %s', $order->get_id(), $result['message'] ?? '' ) );
                 break;

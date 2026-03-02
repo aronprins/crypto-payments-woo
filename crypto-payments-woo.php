@@ -143,7 +143,7 @@ function cpw_ajax_get_crypto_price() {
 
     // Require an active WooCommerce cart session to prevent wallet enumeration.
     if ( ! WC()->cart || WC()->cart->is_empty() ) {
-        wp_send_json_error( [ 'message' => 'No active cart session.' ] );
+        wp_send_json_error( [ 'message' => __( 'No active cart session.', 'crypto-payments-woo' ) ] );
     }
 
     // Simple rate limiting: max 30 requests per minute per IP.
@@ -151,7 +151,7 @@ function cpw_ajax_get_crypto_price() {
     $rate_key = 'cpw_rate_' . $ip_hash;
     $rate_count = (int) get_transient( $rate_key );
     if ( $rate_count >= 30 ) {
-        wp_send_json_error( [ 'message' => 'Too many requests. Please wait a moment.' ] );
+        wp_send_json_error( [ 'message' => __( 'Too many requests. Please wait a moment.', 'crypto-payments-woo' ) ] );
     }
     set_transient( $rate_key, $rate_count + 1, 60 );
 
@@ -162,16 +162,16 @@ function cpw_ajax_get_crypto_price() {
     // Validate currency against WooCommerce supported currencies.
     $supported_currencies = array_keys( get_woocommerce_currencies() );
     if ( ! in_array( $currency, $supported_currencies, true ) ) {
-        wp_send_json_error( [ 'message' => 'Unsupported currency.' ] );
+        wp_send_json_error( [ 'message' => __( 'Unsupported currency.', 'crypto-payments-woo' ) ] );
     }
 
     if ( empty( $network_id ) || $fiat_amount <= 0 || $fiat_amount > 1000000 ) {
-        wp_send_json_error( [ 'message' => 'Invalid parameters.' ] );
+        wp_send_json_error( [ 'message' => __( 'Invalid parameters.', 'crypto-payments-woo' ) ] );
     }
 
     $networks = CPW_Networks::get_all();
     if ( ! isset( $networks[ $network_id ] ) ) {
-        wp_send_json_error( [ 'message' => 'Unknown network.' ] );
+        wp_send_json_error( [ 'message' => __( 'Unknown network.', 'crypto-payments-woo' ) ] );
     }
 
     $network = $networks[ $network_id ];
@@ -181,7 +181,7 @@ function cpw_ajax_get_crypto_price() {
     $crypto_amount = $converter->convert( $fiat_amount, $currency, $network['coingecko_id'], $add_dust );
 
     if ( $crypto_amount === false ) {
-        wp_send_json_error( [ 'message' => 'Could not fetch price. Please try again.' ] );
+        wp_send_json_error( [ 'message' => __( 'Could not fetch price. Please try again.', 'crypto-payments-woo' ) ] );
     }
 
     // Store the quoted amount and timestamp server-side for verification at payment time.
@@ -223,43 +223,43 @@ function cpw_ajax_confirm_payment() {
     $amount     = sanitize_text_field( $_POST['crypto_amount'] ?? '' );
 
     if ( ! $order_id ) {
-        wp_send_json_error( [ 'message' => 'Invalid order.' ] );
+        wp_send_json_error( [ 'message' => __( 'Invalid order.', 'crypto-payments-woo' ) ] );
     }
 
     $order = wc_get_order( $order_id );
     if ( ! $order ) {
-        wp_send_json_error( [ 'message' => 'Order not found.' ] );
+        wp_send_json_error( [ 'message' => __( 'Order not found.', 'crypto-payments-woo' ) ] );
     }
 
     // Verify order ownership via order key.
     if ( ! $order_key || $order->get_order_key() !== $order_key ) {
-        wp_send_json_error( [ 'message' => 'Unauthorized.' ] );
+        wp_send_json_error( [ 'message' => __( 'Unauthorized.', 'crypto-payments-woo' ) ] );
     }
 
     // Verify the order uses our payment method.
     if ( $order->get_payment_method() !== 'crypto_payments' ) {
-        wp_send_json_error( [ 'message' => 'Invalid payment method.' ] );
+        wp_send_json_error( [ 'message' => __( 'Invalid payment method.', 'crypto-payments-woo' ) ] );
     }
 
     // Only allow status changes on pending orders.
     if ( ! $order->has_status( 'pending' ) ) {
-        wp_send_json_error( [ 'message' => 'Order is not in a valid state for payment confirmation.' ] );
+        wp_send_json_error( [ 'message' => __( 'Order is not in a valid state for payment confirmation.', 'crypto-payments-woo' ) ] );
     }
 
     // Validate network.
     $networks = CPW_Networks::get_all();
     if ( ! isset( $networks[ $network_id ] ) ) {
-        wp_send_json_error( [ 'message' => 'Unknown network.' ] );
+        wp_send_json_error( [ 'message' => __( 'Unknown network.', 'crypto-payments-woo' ) ] );
     }
 
     // Validate tx_hash format if provided.
     if ( $tx_hash && ! cpw_validate_tx_hash( $tx_hash, $network_id ) ) {
-        wp_send_json_error( [ 'message' => 'Invalid transaction hash format.' ] );
+        wp_send_json_error( [ 'message' => __( 'Invalid transaction hash format.', 'crypto-payments-woo' ) ] );
     }
 
     // Validate amount is numeric.
     if ( $amount && ! is_numeric( $amount ) ) {
-        wp_send_json_error( [ 'message' => 'Invalid amount.' ] );
+        wp_send_json_error( [ 'message' => __( 'Invalid amount.', 'crypto-payments-woo' ) ] );
     }
 
     $network_name = $networks[ $network_id ]['name'];
@@ -270,19 +270,21 @@ function cpw_ajax_confirm_payment() {
     $order->update_meta_data( '_cpw_payment_time', current_time( 'mysql' ) );
 
     $note = sprintf(
-        'Crypto payment submitted: %s %s on %s.',
+        /* translators: 1: crypto amount, 2: crypto symbol, 3: network name */
+        __( 'Crypto payment submitted: %1$s %2$s on %3$s.', 'crypto-payments-woo' ),
         $amount,
         $networks[ $network_id ]['symbol'],
         $network_name
     );
     if ( $tx_hash ) {
-        $note .= sprintf( ' TX: %s', esc_html( $tx_hash ) );
+        /* translators: %s: transaction hash */
+        $note .= sprintf( __( ' TX: %s', 'crypto-payments-woo' ), esc_html( $tx_hash ) );
     }
     $order->add_order_note( $note );
-    $order->update_status( 'on-hold', 'Awaiting crypto payment confirmation.' );
+    $order->update_status( 'on-hold', __( 'Awaiting crypto payment confirmation.', 'crypto-payments-woo' ) );
     $order->save();
 
-    wp_send_json_success( [ 'message' => 'Payment recorded. Awaiting confirmation.' ] );
+    wp_send_json_success( [ 'message' => __( 'Payment recorded. Awaiting confirmation.', 'crypto-payments-woo' ) ] );
 }
 add_action( 'wp_ajax_cpw_confirm_payment', 'cpw_ajax_confirm_payment' );
 add_action( 'wp_ajax_nopriv_cpw_confirm_payment', 'cpw_ajax_confirm_payment' );
@@ -305,16 +307,16 @@ function cpw_display_order_crypto_meta( $order ) {
     $explorer = isset( $networks[ $network ]['explorer_tx'] ) ? $networks[ $network ]['explorer_tx'] : '';
 
     echo '<div class="order_data_column" style="padding: 12px; background: #f8f8f8; border-left: 4px solid #7c3aed; margin-top: 12px;">';
-    echo '<h3 style="margin-top:0;">Crypto Payment Details</h3>';
-    echo '<p><strong>Network:</strong> ' . esc_html( $network_name ) . '</p>';
-    echo '<p><strong>Amount:</strong> ' . esc_html( $crypto_amount . ' ' . $symbol ) . '</p>';
+    echo '<h3 style="margin-top:0;">' . esc_html__( 'Crypto Payment Details', 'crypto-payments-woo' ) . '</h3>';
+    echo '<p><strong>' . esc_html__( 'Network:', 'crypto-payments-woo' ) . '</strong> ' . esc_html( $network_name ) . '</p>';
+    echo '<p><strong>' . esc_html__( 'Amount:', 'crypto-payments-woo' ) . '</strong> ' . esc_html( $crypto_amount . ' ' . $symbol ) . '</p>';
 
     if ( $tx_hash ) {
         if ( $explorer ) {
             $tx_url = str_replace( '{tx}', $tx_hash, $explorer );
-            echo '<p><strong>TX Hash:</strong> <a href="' . esc_url( $tx_url ) . '" target="_blank">' . esc_html( substr( $tx_hash, 0, 20 ) . '...' ) . '</a></p>';
+            echo '<p><strong>' . esc_html__( 'TX Hash:', 'crypto-payments-woo' ) . '</strong> <a href="' . esc_url( $tx_url ) . '" target="_blank">' . esc_html( substr( $tx_hash, 0, 20 ) . '...' ) . '</a></p>';
         } else {
-            echo '<p><strong>TX Hash:</strong> <code>' . esc_html( $tx_hash ) . '</code></p>';
+            echo '<p><strong>' . esc_html__( 'TX Hash:', 'crypto-payments-woo' ) . '</strong> <code>' . esc_html( $tx_hash ) . '</code></p>';
         }
     }
 

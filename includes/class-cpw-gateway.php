@@ -15,8 +15,8 @@ class CPW_Gateway extends WC_Payment_Gateway {
         $this->id                 = 'crypto_payments';
         $this->icon               = '';
         $this->has_fields         = true;
-        $this->method_title       = 'Crypto Payments';
-        $this->method_description = 'Accept cryptocurrency payments directly to your own wallets. Supports BTC, ETH, SOL, USDT, USDC, and many more.';
+        $this->method_title       = __( 'Crypto Payments', 'crypto-payments-woo' );
+        $this->method_description = __( 'Accept cryptocurrency payments directly to your own wallets. Supports BTC, ETH, SOL, USDT, USDC, and many more.', 'crypto-payments-woo' );
 
         // Load settings.
         $this->init_form_fields();
@@ -93,49 +93,49 @@ class CPW_Gateway extends WC_Payment_Gateway {
     public function init_form_fields() {
         $fields = [
             'enabled' => [
-                'title'   => 'Enable/Disable',
+                'title'   => __( 'Enable/Disable', 'crypto-payments-woo' ),
                 'type'    => 'checkbox',
-                'label'   => 'Enable Crypto Payments',
+                'label'   => __( 'Enable Crypto Payments', 'crypto-payments-woo' ),
                 'default' => 'no',
             ],
             'title' => [
-                'title'       => 'Title',
+                'title'       => __( 'Title', 'crypto-payments-woo' ),
                 'type'        => 'text',
-                'description' => 'The title shown to customers at checkout.',
-                'default'     => 'Pay with Crypto',
+                'description' => __( 'The title shown to customers at checkout.', 'crypto-payments-woo' ),
+                'default'     => __( 'Pay with Crypto', 'crypto-payments-woo' ),
                 'desc_tip'    => true,
             ],
             'description' => [
-                'title'       => 'Description',
+                'title'       => __( 'Description', 'crypto-payments-woo' ),
                 'type'        => 'textarea',
-                'description' => 'Description shown to customers at checkout.',
-                'default'     => 'Pay with Bitcoin, Ethereum, Solana, stablecoins, and more. Fast, secure, and borderless.',
+                'description' => __( 'Description shown to customers at checkout.', 'crypto-payments-woo' ),
+                'default'     => __( 'Pay with Bitcoin, Ethereum, Solana, stablecoins, and more. Fast, secure, and borderless.', 'crypto-payments-woo' ),
             ],
             'payment_window' => [
-                'title'       => 'Payment Window (minutes)',
+                'title'       => __( 'Payment Window (minutes)', 'crypto-payments-woo' ),
                 'type'        => 'number',
-                'description' => 'How long (in minutes) the customer has to complete payment before the quoted price expires.',
+                'description' => __( 'How long (in minutes) the customer has to complete payment before the quoted price expires.', 'crypto-payments-woo' ),
                 'default'     => '15',
                 'desc_tip'    => true,
             ],
             'coingecko_api_key' => [
-                'title'       => 'CoinGecko API Key (optional)',
+                'title'       => __( 'CoinGecko API Key (optional)', 'crypto-payments-woo' ),
                 'type'        => 'text',
-                'description' => 'A free CoinGecko Demo API key increases your rate limit. Get one at <a href="https://www.coingecko.com/en/api" target="_blank">coingecko.com/en/api</a>.',
+                'description' => __( 'A free CoinGecko Demo API key increases your rate limit. Get one at <a href="https://www.coingecko.com/en/api" target="_blank">coingecko.com/en/api</a>.', 'crypto-payments-woo' ),
                 'default'     => '',
             ],
             'walletconnect_project_id' => [
-                'title'       => 'WalletConnect Project ID (optional)',
+                'title'       => __( 'WalletConnect Project ID (optional)', 'crypto-payments-woo' ),
                 'type'        => 'text',
-                'description' => 'Enables WalletConnect "Pay from Wallet" for EVM chains. Free at <a href="https://cloud.walletconnect.com/" target="_blank">cloud.walletconnect.com</a>.',
+                'description' => __( 'Enables WalletConnect "Pay from Wallet" for EVM chains. Free at <a href="https://cloud.walletconnect.com/" target="_blank">cloud.walletconnect.com</a>.', 'crypto-payments-woo' ),
                 'default'     => '',
             ],
 
             // ── Wallet address section ──────────────────────────────────
             'wallet_heading' => [
-                'title'       => 'Wallet Addresses',
+                'title'       => __( 'Wallet Addresses', 'crypto-payments-woo' ),
                 'type'        => 'title',
-                'description' => 'Enter your wallet addresses below. Only networks with an address will appear at checkout. Leave blank to disable a network.',
+                'description' => __( 'Enter your wallet addresses below. Only networks with an address will appear at checkout. Leave blank to disable a network.', 'crypto-payments-woo' ),
             ],
         ];
 
@@ -154,9 +154,11 @@ class CPW_Gateway extends WC_Payment_Gateway {
                 $fields[ 'wallet_' . $id ] = [
                     'title'       => $network['name'] . ' (' . $network['symbol'] . ')',
                     'type'        => 'text',
-                    'description' => 'Your ' . $network['name'] . ' receiving address.',
+                    /* translators: %s: network name */
+                    'description' => sprintf( __( 'Your %s receiving address.', 'crypto-payments-woo' ), $network['name'] ),
                     'default'     => '',
-                    'placeholder' => 'Enter your ' . $network['symbol'] . ' address',
+                    /* translators: %s: crypto symbol */
+                    'placeholder' => sprintf( __( 'Enter your %s address', 'crypto-payments-woo' ), $network['symbol'] ),
                     'desc_tip'    => true,
                 ];
             }
@@ -164,32 +166,32 @@ class CPW_Gateway extends WC_Payment_Gateway {
 
         // ── Auto-verification section ───────────────────────────────
         $fields['verify_heading'] = [
-            'title'       => '⚡ Automatic Payment Verification',
+            'title'       => __( 'Automatic Payment Verification', 'crypto-payments-woo' ),
             'type'        => 'title',
-            'description' => 'When enabled, the plugin checks the blockchain every 3 minutes for pending orders and auto-completes them when payment is confirmed. Logs are written to <strong>WooCommerce → Status → Logs → crypto-payments</strong>.',
+            'description' => __( 'When enabled, the plugin checks the blockchain every 3 minutes for pending orders and auto-completes them when payment is confirmed. Logs are written to <strong>WooCommerce &rarr; Status &rarr; Logs &rarr; crypto-payments</strong>.', 'crypto-payments-woo' ),
         ];
 
         $fields['auto_verify'] = [
-            'title'   => 'Enable Auto-Verification',
+            'title'   => __( 'Enable Auto-Verification', 'crypto-payments-woo' ),
             'type'    => 'checkbox',
-            'label'   => 'Automatically verify crypto payments on-chain and complete orders',
+            'label'   => __( 'Automatically verify crypto payments on-chain and complete orders', 'crypto-payments-woo' ),
             'default' => 'no',
-            'description' => 'Requires API keys for EVM chains (below). Bitcoin, Solana, XRP, and TRON use free public APIs with no key needed.',
+            'description' => __( 'Requires API keys for EVM chains (below). Bitcoin, Solana, XRP, and TRON use free public APIs with no key needed.', 'crypto-payments-woo' ),
         ];
 
         $fields['unique_amounts'] = [
-            'title'   => 'Unique Payment Amounts',
+            'title'   => __( 'Unique Payment Amounts', 'crypto-payments-woo' ),
             'type'    => 'checkbox',
-            'label'   => 'Add tiny random "dust" to each payment amount for reliable matching',
+            'label'   => __( 'Add tiny random "dust" to each payment amount for reliable matching', 'crypto-payments-woo' ),
             'default' => 'yes',
-            'description' => 'Recommended. Adds a few cents of variation so each order has a unique crypto amount, preventing mismatched payments when multiple customers pay simultaneously.',
+            'description' => __( 'Recommended. Adds a few cents of variation so each order has a unique crypto amount, preventing mismatched payments when multiple customers pay simultaneously.', 'crypto-payments-woo' ),
         ];
 
         // EVM explorer API keys.
         $fields['verify_evm_heading'] = [
-            'title'       => 'EVM Explorer API Keys',
+            'title'       => __( 'EVM Explorer API Keys', 'crypto-payments-woo' ),
             'type'        => 'title',
-            'description' => 'Free API keys from each chain\'s block explorer. Only needed for chains you\'ve configured wallet addresses for. Each takes ~2 minutes to register.',
+            'description' => __( 'Free API keys from each chain\'s block explorer. Only needed for chains you\'ve configured wallet addresses for. Each takes ~2 minutes to register.', 'crypto-payments-woo' ),
         ];
 
         $evm_api_keys = [
@@ -204,11 +206,13 @@ class CPW_Gateway extends WC_Payment_Gateway {
 
         foreach ( $evm_api_keys as $key => $info ) {
             $fields[ $key ] = [
-                'title'       => $info[0] . ' API Key',
+                /* translators: %s: explorer service name */
+                'title'       => sprintf( __( '%s API Key', 'crypto-payments-woo' ), $info[0] ),
                 'type'        => 'text',
-                'description' => 'Free at <a href="' . $info[1] . '" target="_blank">' . $info[1] . '</a>',
+                /* translators: %s: explorer URL */
+                'description' => sprintf( __( 'Free at <a href="%s" target="_blank">%s</a>', 'crypto-payments-woo' ), $info[1], $info[1] ),
                 'default'     => '',
-                'placeholder' => 'Paste your API key',
+                'placeholder' => __( 'Paste your API key', 'crypto-payments-woo' ),
             ];
         }
 
@@ -285,7 +289,8 @@ class CPW_Gateway extends WC_Payment_Gateway {
         if ( ! $valid ) {
             WC_Admin_Settings::add_error(
                 sprintf(
-                    '%s wallet address appears invalid (%s). Please double-check it.',
+                    /* translators: 1: network name, 2: expected format hint */
+                    __( '%1$s wallet address appears invalid (%2$s). Please double-check it.', 'crypto-payments-woo' ),
                     $network['name'],
                     $format_hint
                 )
@@ -306,18 +311,18 @@ class CPW_Gateway extends WC_Payment_Gateway {
         $enabled_networks = CPW_Networks::get_enabled();
 
         if ( empty( $enabled_networks ) ) {
-            echo '<p style="color:#c00;">No cryptocurrency wallets have been configured. Please contact the store owner.</p>';
+            echo '<p style="color:#c00;">' . esc_html__( 'No cryptocurrency wallets have been configured. Please contact the store owner.', 'crypto-payments-woo' ) . '</p>';
             return;
         }
 
         $groups = CPW_Networks::group_by_category( $enabled_networks );
 
         echo '<div id="cpw-network-selector">';
-        echo '<label id="cpw-network-label" style="display:block; margin-bottom:6px; font-weight:600;">Choose a cryptocurrency:</label>';
+        echo '<label id="cpw-network-label" style="display:block; margin-bottom:6px; font-weight:600;">' . esc_html__( 'Choose a cryptocurrency:', 'crypto-payments-woo' ) . '</label>';
         echo '<input type="hidden" name="cpw_network" id="cpw_network" value="" />';
         echo '<div class="cpw-dropdown" role="combobox" aria-expanded="false" aria-haspopup="listbox" aria-labelledby="cpw-network-label">';
         echo '<button type="button" class="cpw-dropdown-trigger" aria-expanded="false">';
-        echo '<span class="cpw-dropdown-trigger-text">— Select cryptocurrency —</span>';
+        echo '<span class="cpw-dropdown-trigger-text">' . esc_html__( '— Select cryptocurrency —', 'crypto-payments-woo' ) . '</span>';
         echo '<svg class="cpw-dropdown-arrow" viewBox="0 0 12 12" width="12" height="12" aria-hidden="true"><path fill="#6b7280" d="M6 8L1 3h10z"/></svg>';
         echo '</button>';
         echo '<div class="cpw-dropdown-menu" role="listbox" aria-labelledby="cpw-network-label" tabindex="-1">';
@@ -346,40 +351,40 @@ class CPW_Gateway extends WC_Payment_Gateway {
         // Payment details area (populated by JS after network selection).
         echo '<div id="cpw-payment-details" style="display:none; margin-top:16px;">';
         echo '  <div id="cpw-loading" style="display:none; text-align:center; padding:20px;">';
-        echo '    <span class="cpw-spinner"></span> Fetching live price…';
+        echo '    <span class="cpw-spinner"></span> ' . esc_html__( 'Fetching live price…', 'crypto-payments-woo' );
         echo '  </div>';
         echo '  <div id="cpw-payment-info" style="display:none;">';
 
         // Step 1: Amount.
-        echo '    <div class="cpw-step-header"><span class="cpw-step-num">1</span> Send this amount</div>';
+        echo '    <div class="cpw-step-header"><span class="cpw-step-num">1</span> ' . esc_html__( 'Send this amount', 'crypto-payments-woo' ) . '</div>';
         echo '    <div class="cpw-amount-box">';
         echo '      <div class="cpw-amount-value">';
         echo '        <span id="cpw-crypto-amount">—</span> <span id="cpw-crypto-symbol">—</span>';
-        echo '        <button type="button" id="cpw-copy-amount" class="cpw-copy-btn" title="Copy amount">📋</button>';
+        echo '        <button type="button" id="cpw-copy-amount" class="cpw-copy-btn" title="' . esc_attr__( 'Copy amount', 'crypto-payments-woo' ) . '">📋</button>';
         echo '      </div>';
         echo '      <div class="cpw-fiat-equiv" id="cpw-fiat-equiv"></div>';
         echo '    </div>';
 
         // Step 2: Address + QR.
-        echo '    <div class="cpw-step-header"><span class="cpw-step-num">2</span> To this address</div>';
+        echo '    <div class="cpw-step-header"><span class="cpw-step-num">2</span> ' . esc_html__( 'To this address', 'crypto-payments-woo' ) . '</div>';
         echo '    <div class="cpw-address-box">';
         echo '      <div id="cpw-qr-code" class="cpw-qr"></div>';
         echo '      <div class="cpw-address-value">';
         echo '        <code id="cpw-wallet-address">—</code>';
-        echo '        <button type="button" id="cpw-copy-address" class="cpw-copy-btn" title="Copy address">📋</button>';
+        echo '        <button type="button" id="cpw-copy-address" class="cpw-copy-btn" title="' . esc_attr__( 'Copy address', 'crypto-payments-woo' ) . '">📋</button>';
         echo '      </div>';
         echo '    </div>';
 
         // Timer.
         echo '    <div class="cpw-timer-box">';
-        echo '      <span>⏱ Price valid for: </span><strong id="cpw-timer">—</strong>';
+        echo '      <span>' . esc_html__( 'Price valid for:', 'crypto-payments-woo' ) . ' </span><strong id="cpw-timer">—</strong>';
         echo '    </div>';
 
         // Step 3: Confirm.
-        echo '    <div class="cpw-step-header"><span class="cpw-step-num">3</span> Paste your transaction hash (optional) and click the button below</div>';
+        echo '    <div class="cpw-step-header"><span class="cpw-step-num">3</span> ' . esc_html__( 'Paste your transaction hash (optional) and click the button below', 'crypto-payments-woo' ) . '</div>';
         echo '    <div class="cpw-tx-hash-box">';
-        echo '      <input type="text" name="cpw_tx_hash" id="cpw_tx_hash" class="input-text" placeholder="Paste your transaction hash for faster verification" />';
-        echo '      <small style="color:#666;">Providing the TX hash helps us confirm your payment faster.</small>';
+        echo '      <input type="text" name="cpw_tx_hash" id="cpw_tx_hash" class="input-text" placeholder="' . esc_attr__( 'Paste your transaction hash for faster verification', 'crypto-payments-woo' ) . '" />';
+        echo '      <small style="color:#666;">' . esc_html__( 'Providing the TX hash helps us confirm your payment faster.', 'crypto-payments-woo' ) . '</small>';
         echo '    </div>';
 
         echo '  </div>';
@@ -401,7 +406,7 @@ class CPW_Gateway extends WC_Payment_Gateway {
         }
 
         if ( empty( $_POST['cpw_network'] ) ) {
-            wc_add_notice( 'Please select a cryptocurrency to pay with.', 'error' );
+            wc_add_notice( __( 'Please select a cryptocurrency to pay with.', 'crypto-payments-woo' ), 'error' );
             return false;
         }
 
@@ -409,13 +414,13 @@ class CPW_Gateway extends WC_Payment_Gateway {
         $networks = CPW_Networks::get_all();
 
         if ( ! isset( $networks[ $network_id ] ) ) {
-            wc_add_notice( 'Invalid cryptocurrency selected.', 'error' );
+            wc_add_notice( __( 'Invalid cryptocurrency selected.', 'crypto-payments-woo' ), 'error' );
             return false;
         }
 
         $address_key = 'wallet_' . $network_id;
         if ( empty( $this->get_option( $address_key ) ) ) {
-            wc_add_notice( 'This cryptocurrency is not currently available for payment.', 'error' );
+            wc_add_notice( __( 'This cryptocurrency is not currently available for payment.', 'crypto-payments-woo' ), 'error' );
             return false;
         }
 
@@ -449,7 +454,7 @@ class CPW_Gateway extends WC_Payment_Gateway {
 
         // Validate tx_hash format if provided.
         if ( $tx_hash && function_exists( 'cpw_validate_tx_hash' ) && ! cpw_validate_tx_hash( $tx_hash, $network_id ) ) {
-            wc_add_notice( 'Invalid transaction hash format.', 'error' );
+            wc_add_notice( __( 'Invalid transaction hash format.', 'crypto-payments-woo' ), 'error' );
             return [ 'result' => 'failure' ];
         }
 
@@ -463,13 +468,13 @@ class CPW_Gateway extends WC_Payment_Gateway {
             if ( $quoted_amount && $quoted_network ) {
                 // Check the quote hasn't expired.
                 if ( $quoted_at && ( time() - $quoted_at ) > ( $payment_window * 60 ) ) {
-                    wc_add_notice( 'Your price quote has expired. Please select a cryptocurrency again to get a fresh quote.', 'error' );
+                    wc_add_notice( __( 'Your price quote has expired. Please select a cryptocurrency again to get a fresh quote.', 'crypto-payments-woo' ), 'error' );
                     return [ 'result' => 'failure' ];
                 }
 
                 // Check the amount matches what we quoted (prevent client-side tampering).
                 if ( $crypto_amount !== $quoted_amount || $network_id !== $quoted_network ) {
-                    wc_add_notice( 'Payment amount mismatch. Please select a cryptocurrency again.', 'error' );
+                    wc_add_notice( __( 'Payment amount mismatch. Please select a cryptocurrency again.', 'crypto-payments-woo' ), 'error' );
                     return [ 'result' => 'failure' ];
                 }
             }
@@ -503,7 +508,8 @@ class CPW_Gateway extends WC_Payment_Gateway {
 
         if ( $tx_hash ) {
             $note = sprintf(
-                'Customer selected %s (%s) payment. Amount: %s %s. TX Hash: %s',
+                /* translators: 1: network name, 2: symbol, 3: crypto amount, 4: symbol, 5: transaction hash */
+                __( 'Customer selected %1$s (%2$s) payment. Amount: %3$s %4$s. TX Hash: %5$s', 'crypto-payments-woo' ),
                 $network_name,
                 $symbol,
                 $crypto_amount,
@@ -512,7 +518,8 @@ class CPW_Gateway extends WC_Payment_Gateway {
             );
         } else {
             $note = sprintf(
-                'Customer selected %s (%s) payment. Amount: %s %s. Awaiting transaction hash.',
+                /* translators: 1: network name, 2: symbol, 3: crypto amount, 4: symbol */
+                __( 'Customer selected %1$s (%2$s) payment. Amount: %3$s %4$s. Awaiting transaction hash.', 'crypto-payments-woo' ),
                 $network_name,
                 $symbol,
                 $crypto_amount,
@@ -523,7 +530,7 @@ class CPW_Gateway extends WC_Payment_Gateway {
         $order->add_order_note( $note );
 
         // Set order status to on-hold (awaiting manual or automated verification).
-        $order->update_status( 'on-hold', 'Awaiting crypto payment confirmation.' );
+        $order->update_status( 'on-hold', __( 'Awaiting crypto payment confirmation.', 'crypto-payments-woo' ) );
         $order->save();
 
         // Reduce stock levels.
@@ -560,25 +567,25 @@ class CPW_Gateway extends WC_Payment_Gateway {
         }
 
         echo '<div class="cpw-thankyou-box" style="background:#f0fdf4; border:1px solid #86efac; border-radius:8px; padding:20px; margin:20px 0;">';
-        echo '<h3 style="margin-top:0; color:#166534;">💰 Crypto Payment Details</h3>';
+        echo '<h3 style="margin-top:0; color:#166534;">' . esc_html__( 'Crypto Payment Details', 'crypto-payments-woo' ) . '</h3>';
 
         if ( $tx_hash ) {
-            echo '<p style="color:#166534;"><strong>✅ Payment submitted!</strong> We will verify your transaction and process your order.</p>';
+            echo '<p style="color:#166534;"><strong>' . esc_html__( 'Payment submitted!', 'crypto-payments-woo' ) . '</strong> ' . esc_html__( 'We will verify your transaction and process your order.', 'crypto-payments-woo' ) . '</p>';
         } else {
-            echo '<p>Please send your payment if you haven\'t already:</p>';
+            echo '<p>' . esc_html__( 'Please send your payment if you haven\'t already:', 'crypto-payments-woo' ) . '</p>';
         }
 
         echo '<table style="width:100%; border-collapse:collapse;">';
-        echo '<tr><td style="padding:6px 0; font-weight:600;">Network:</td><td>' . esc_html( $network['name'] ) . '</td></tr>';
-        echo '<tr><td style="padding:6px 0; font-weight:600;">Amount:</td><td><strong>' . esc_html( $crypto_amount . ' ' . $network['symbol'] ) . '</strong></td></tr>';
-        echo '<tr><td style="padding:6px 0; font-weight:600;">Send to:</td><td><code style="word-break:break-all;">' . esc_html( $wallet_address ) . '</code></td></tr>';
+        echo '<tr><td style="padding:6px 0; font-weight:600;">' . esc_html__( 'Network:', 'crypto-payments-woo' ) . '</td><td>' . esc_html( $network['name'] ) . '</td></tr>';
+        echo '<tr><td style="padding:6px 0; font-weight:600;">' . esc_html__( 'Amount:', 'crypto-payments-woo' ) . '</td><td><strong>' . esc_html( $crypto_amount . ' ' . $network['symbol'] ) . '</strong></td></tr>';
+        echo '<tr><td style="padding:6px 0; font-weight:600;">' . esc_html__( 'Send to:', 'crypto-payments-woo' ) . '</td><td><code style="word-break:break-all;">' . esc_html( $wallet_address ) . '</code></td></tr>';
 
         if ( $tx_hash ) {
             $explorer_url = '';
             if ( ! empty( $network['explorer_tx'] ) ) {
                 $explorer_url = str_replace( '{tx}', $tx_hash, $network['explorer_tx'] );
             }
-            echo '<tr><td style="padding:6px 0; font-weight:600;">TX Hash:</td><td>';
+            echo '<tr><td style="padding:6px 0; font-weight:600;">' . esc_html__( 'TX Hash:', 'crypto-payments-woo' ) . '</td><td>';
             if ( $explorer_url ) {
                 echo '<a href="' . esc_url( $explorer_url ) . '" target="_blank">' . esc_html( substr( $tx_hash, 0, 24 ) . '...' ) . '</a>';
             } else {
@@ -588,7 +595,7 @@ class CPW_Gateway extends WC_Payment_Gateway {
         }
 
         echo '</table>';
-        echo '<p style="margin-bottom:0; color:#666; font-size:0.9em;">Your order will be processed once we confirm the payment on-chain. This usually takes a few minutes.</p>';
+        echo '<p style="margin-bottom:0; color:#666; font-size:0.9em;">' . esc_html__( 'Your order will be processed once we confirm the payment on-chain. This usually takes a few minutes.', 'crypto-payments-woo' ) . '</p>';
         echo '</div>';
     }
 }

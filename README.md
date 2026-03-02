@@ -30,12 +30,15 @@ Accept cryptocurrency payments directly to your own wallets — no third-party p
 ## Features
 
 - **Direct-to-wallet payments** — funds go straight to your addresses, no intermediary
+- **Automatic payment verification** — checks the blockchain every 3 minutes and auto-completes orders when payment is confirmed
 - **Live price conversion** — automatically converts your store's fiat prices to crypto using CoinGecko
 - **QR codes** — generated for each payment with proper payment URIs (BIP-21, EIP-681, etc.)
-- **15-minute price lock** — customers get a fixed crypto amount with a countdown timer
+- **Configurable price lock** — customers get a fixed crypto amount with a countdown timer (default: 15 minutes)
+- **Unique payment amounts** — optional dust amounts prevent payment collisions when multiple customers pay simultaneously
 - **Copy-to-clipboard** — one-click copy for both amount and address
 - **Order tracking** — crypto payment details stored on each order (network, amount, TX hash)
 - **Block explorer links** — TX hashes link to the appropriate block explorer
+- **WooCommerce Blocks support** — works with both classic and block-based checkout
 - **WooCommerce HPOS compatible** — works with High-Performance Order Storage
 - **Mobile-responsive** — clean checkout UI on all devices
 
@@ -76,8 +79,8 @@ Accept cryptocurrency payments directly to your own wallets — no third-party p
 1. Orders paid with crypto are set to **"On Hold"** status.
 2. You receive the standard WooCommerce new order email.
 3. The order includes crypto payment details: network, amount, TX hash, and block explorer link.
-4. You verify the payment on the blockchain (manually or via block explorer).
-5. You change the order status to **"Processing"** or **"Completed"**.
+4. If **Auto-Verification** is enabled, the plugin checks the blockchain every 3 minutes and automatically moves the order to **"Processing"**/**"Completed"** when enough confirmations are reached.
+5. If auto-verification is disabled, you verify the payment manually via the block explorer link and update the order status yourself.
 
 ## Configuration
 
@@ -88,8 +91,11 @@ Accept cryptocurrency payments directly to your own wallets — no third-party p
 | **Description** | Subtitle shown under the payment method |
 | **Payment Window** | Minutes before the quoted price expires (default: 15) |
 | **CoinGecko API Key** | Optional API key for higher rate limits |
-| **WalletConnect Project ID** | Optional, for future WalletConnect integration |
+| **WalletConnect Project ID** | Optional, for WalletConnect integration on EVM chains |
 | **Wallet Addresses** | One field per supported network — only filled ones are enabled |
+| **Enable Auto-Verification** | Automatically verify payments on-chain and complete orders |
+| **Unique Payment Amounts** | Add tiny dust amounts for reliable payment matching (default: on) |
+| **EVM Explorer API Keys** | Free API keys for Etherscan, BscScan, PolygonScan, etc. (required for EVM auto-verification) |
 
 ### Price Conversion
 - Prices are fetched from CoinGecko's free API.
@@ -99,20 +105,41 @@ Accept cryptocurrency payments directly to your own wallets — no third-party p
 
 ## Payment Verification
 
-This plugin uses a **manual verification** workflow by default. When a customer pays:
+### Automatic Verification (Recommended)
+
+Enable **Auto-Verification** in the plugin settings to have the plugin automatically check the blockchain and complete orders. The plugin polls on-chain data every 3 minutes via WP-Cron.
+
+**Supported chains and APIs:**
+
+| Chain | API Used | API Key Required? |
+|-------|----------|-------------------|
+| Ethereum, Polygon, Arbitrum, Optimism, Base, BNB Chain, Avalanche | Etherscan-family APIs | Yes (free) |
+| Bitcoin | mempool.space | No |
+| Litecoin, Dogecoin | Blockchair | No |
+| Solana | Solana RPC / Solscan | No |
+| XRP | XRPL JSON-RPC | No |
+| TRON | Tronscan / TronGrid | No |
+
+**How it works:**
+1. The order is set to "On Hold" at checkout.
+2. Every 3 minutes, the plugin checks all on-hold crypto orders (up to 50, within the last 48 hours).
+3. For each order, it queries the appropriate blockchain API using the TX hash (if provided) or by scanning recent transactions to your wallet.
+4. When enough confirmations are reached, the order is automatically moved to "Processing"/"Completed".
+5. All verification activity is logged to **WooCommerce > Status > Logs > crypto-payments**.
+
+**WP-Cron note:** WP-Cron only fires on page visits. For reliable 3-minute intervals on low-traffic sites, set up a real system cron:
+```
+*/3 * * * * wget -q -O /dev/null https://yoursite.com/wp-cron.php?doing_wp_cron
+```
+
+### Manual Verification
+
+If auto-verification is disabled, you can verify payments manually:
 
 1. The order is set to "On Hold".
 2. If the customer provides a TX hash, it's saved to the order and linked to the block explorer.
-3. You click the explorer link and confirm the transaction.
-4. You update the order status.
-
-### Automating Verification (Advanced)
-For automated verification, you could extend this plugin by:
-- Using blockchain RPC APIs (Alchemy, Infura, QuickNode) to watch your wallet for incoming transactions.
-- Using webhook services that notify you when a payment arrives.
-- Building a cron job that checks pending orders against on-chain data.
-
-This is left as an extension point since it requires API keys and varies by chain.
+3. Click the explorer link on the order to confirm the transaction.
+4. Update the order status manually.
 
 ## Adding More Cryptocurrencies
 
