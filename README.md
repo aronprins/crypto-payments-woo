@@ -141,6 +141,29 @@ If auto-verification is disabled, you can verify payments manually:
 3. Click the explorer link on the order to confirm the transaction.
 4. Update the order status manually.
 
+## Shortcode
+
+Use `[cpw_accepted_crypto]` to display a visual bar of accepted cryptocurrency icons anywhere on your site (pages, posts, sidebar widgets, footer, etc.). It dynamically reflects which networks are enabled in your settings.
+
+Each icon represents a parent network, and hovering reveals a tooltip listing all accepted coins on that chain (e.g., "Ethereum: ETH, USDT, USDC").
+
+### Attributes
+
+| Attribute | Default | Description |
+|-----------|---------|-------------|
+| `title` | `Accepted Crypto` | The label text |
+| `show_title` | `yes` | Show or hide the label (`yes` / `no`) |
+| `align` | `left` | Horizontal alignment (`left` / `center` / `right`) |
+
+### Examples
+
+```
+[cpw_accepted_crypto]
+[cpw_accepted_crypto align="center"]
+[cpw_accepted_crypto title="We accept" align="right"]
+[cpw_accepted_crypto show_title="no" align="center"]
+```
+
 ## Adding More Cryptocurrencies
 
 To add a new network, edit `includes/class-cpw-networks.php` and add an entry to the `get_all()` method:
