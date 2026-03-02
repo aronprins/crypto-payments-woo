@@ -41,6 +41,8 @@
             var $menu = $dropdown.find('.cpw-dropdown-menu');
             var $options = $menu.find('.cpw-dropdown-option');
 
+            var $search = $menu.find('.cpw-dropdown-search');
+
             // Toggle on trigger click.
             $trigger.off('click.cpw').on('click.cpw', function (e) {
                 e.preventDefault();
@@ -54,6 +56,23 @@
                 e.preventDefault();
                 e.stopPropagation();
                 self.selectOption($(this));
+            });
+
+            // Search input filtering.
+            $search.off('input.cpw').on('input.cpw', function () {
+                self.filterOptions($(this).val());
+            });
+
+            // Prevent search input from closing dropdown or triggering option keys.
+            $search.off('keydown.cpw').on('keydown.cpw', function (e) {
+                e.stopPropagation();
+                if (e.key === 'Escape') {
+                    self.toggleDropdown(false);
+                    $trigger.focus();
+                } else if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    $menu.find('.cpw-dropdown-option:visible').first().focus();
+                }
             });
 
             // Keyboard navigation on trigger.
@@ -78,21 +97,46 @@
             var $dropdown = $('.cpw-dropdown');
             var $trigger = $dropdown.find('.cpw-dropdown-trigger');
             var $menu = $dropdown.find('.cpw-dropdown-menu');
+            var $search = $menu.find('.cpw-dropdown-search');
 
             $dropdown.attr('aria-expanded', open ? 'true' : 'false');
             $trigger.attr('aria-expanded', open ? 'true' : 'false');
 
             if (open) {
                 $menu.addClass('cpw-dropdown-menu--open');
-                // Focus the selected option or first option.
-                var $selected = $menu.find('.cpw-dropdown-option[aria-selected="true"]');
-                if ($selected.length) {
-                    $selected.focus();
-                } else {
-                    $menu.find('.cpw-dropdown-option').first().focus();
-                }
+                // Clear previous search and focus the search input.
+                $search.val('');
+                this.filterOptions('');
+                $search.focus();
             } else {
                 $menu.removeClass('cpw-dropdown-menu--open');
+            }
+        },
+
+        filterOptions: function (query) {
+            var $menu = $('.cpw-dropdown-menu');
+            var term = query.toLowerCase().trim();
+
+            $menu.find('.cpw-dropdown-option').each(function () {
+                var $opt = $(this);
+                var name = $opt.find('.cpw-dropdown-name').text().toLowerCase();
+                var value = ($opt.data('value') || '').toLowerCase();
+                var symbol = ($opt.data('symbol') || '').toLowerCase();
+                var match = !term || name.indexOf(term) > -1 || value.indexOf(term) > -1 || symbol.indexOf(term) > -1;
+                $opt.toggle(match);
+            });
+
+            // Hide group labels with no visible options.
+            $menu.find('.cpw-dropdown-group').each(function () {
+                var $group = $(this);
+                var hasVisible = $group.find('.cpw-dropdown-option:visible').length > 0;
+                $group.toggle(hasVisible);
+            });
+
+            // Show "no results" message.
+            $menu.find('.cpw-dropdown-no-results').remove();
+            if (!$menu.find('.cpw-dropdown-option:visible').length) {
+                $menu.append('<div class="cpw-dropdown-no-results">' + cpw_data.i18n_no_results + '</div>');
             }
         },
 
@@ -133,7 +177,7 @@
         handleOptionKeydown: function (e) {
             var key = e.key;
             var $current = $(e.target);
-            var $allOptions = $('.cpw-dropdown-menu .cpw-dropdown-option');
+            var $allOptions = $('.cpw-dropdown-menu .cpw-dropdown-option:visible');
             var idx = $allOptions.index($current);
 
             switch (key) {

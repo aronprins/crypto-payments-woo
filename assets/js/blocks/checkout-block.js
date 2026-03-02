@@ -45,9 +45,11 @@
         const [txHash, setTxHash] = useState('');
         const [copiedField, setCopiedField] = useState('');
         const [dropdownOpen, setDropdownOpen] = useState(false);
+        const [searchQuery, setSearchQuery] = useState('');
         const timerRef = useRef(null);
         const qrRef = useRef(null);
         const dropdownRef = useRef(null);
+        const searchRef = useRef(null);
 
         // Register payment setup handler - this fires when "Place Order" is clicked.
         useEffect(() => {
@@ -114,6 +116,7 @@
             const handleClickOutside = (e) => {
                 if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
                     setDropdownOpen(false);
+                    setSearchQuery('');
                 }
             };
             document.addEventListener('mousedown', handleClickOutside);
@@ -311,10 +314,29 @@
             return null;
         };
 
-        // Flatten all options for keyboard navigation.
+        // Filter networks by search query.
+        const getFilteredNetworks = () => {
+            const term = searchQuery.toLowerCase().trim();
+            if (!term) return networks;
+            return networks
+                .map((group) => ({
+                    ...group,
+                    items: group.items.filter(
+                        (net) =>
+                            net.name.toLowerCase().indexOf(term) > -1 ||
+                            net.id.toLowerCase().indexOf(term) > -1 ||
+                            (net.symbol || '').toLowerCase().indexOf(term) > -1
+                    ),
+                }))
+                .filter((group) => group.items.length > 0);
+        };
+
+        const filteredNetworks = getFilteredNetworks();
+
+        // Flatten all visible options for keyboard navigation.
         const getAllOptions = () => {
             const all = [];
-            for (const group of networks) {
+            for (const group of filteredNetworks) {
                 for (const net of group.items) {
                     all.push(net);
                 }
@@ -322,10 +344,31 @@
             return all;
         };
 
+        const handleSearchKeydown = (e) => {
+            e.stopPropagation();
+            if (e.key === 'Escape') {
+                setDropdownOpen(false);
+                setSearchQuery('');
+            } else if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                const allOpts = getAllOptions();
+                if (allOpts.length) {
+                    const firstEl = dropdownRef.current?.querySelector(
+                        '[data-value="' + allOpts[0].id + '"]'
+                    );
+                    if (firstEl) firstEl.focus();
+                }
+            }
+        };
+
         const handleTriggerKeydown = (e) => {
             if (e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === 'Enter' || e.key === ' ') {
                 e.preventDefault();
+                setSearchQuery('');
                 setDropdownOpen(true);
+                setTimeout(() => {
+                    if (searchRef.current) searchRef.current.focus();
+                }, 0);
             } else if (e.key === 'Escape') {
                 setDropdownOpen(false);
             }
@@ -377,10 +420,12 @@
                     e.preventDefault();
                     setSelectedNetwork(netId);
                     setDropdownOpen(false);
+                    setSearchQuery('');
                     break;
                 case 'Escape':
                     e.preventDefault();
                     setDropdownOpen(false);
+                    setSearchQuery('');
                     break;
             }
         };
@@ -447,7 +492,15 @@
                         'aria-expanded': dropdownOpen ? 'true' : 'false',
                         onClick: (e) => {
                             e.preventDefault();
+                            if (!dropdownOpen) {
+                                setSearchQuery('');
+                            }
                             setDropdownOpen(!dropdownOpen);
+                            if (!dropdownOpen) {
+                                setTimeout(() => {
+                                    if (searchRef.current) searchRef.current.focus();
+                                }, 0);
+                            }
                         },
                         onKeyDown: handleTriggerKeydown,
                     },
@@ -462,56 +515,74 @@
                               role: 'listbox',
                               'aria-labelledby': 'cpw-block-network-label',
                           },
-                          ...networks.map((group) =>
-                              els(
-                                  'div',
-                                  {
-                                      className: 'cpw-dropdown-group',
-                                      role: 'group',
-                                      'aria-label': group.group,
-                                      key: group.group,
-                                  },
-                                  els(
-                                      'div',
-                                      { className: 'cpw-dropdown-group-label' },
-                                      group.group
-                                  ),
-                                  ...group.items.map((net) =>
-                                      els(
-                                          'div',
-                                          {
-                                              className:
-                                                  'cpw-dropdown-option' +
-                                                  (net.id === selectedNetwork
-                                                      ? ' cpw-dropdown-option--selected'
-                                                      : ''),
-                                              role: 'option',
-                                              'aria-selected':
-                                                  net.id === selectedNetwork ? 'true' : 'false',
-                                              'data-value': net.id,
-                                              tabIndex: 0,
-                                              key: net.id,
-                                              onClick: () => {
-                                                  setSelectedNetwork(net.id);
-                                                  setDropdownOpen(false);
-                                              },
-                                              onKeyDown: (e) => handleOptionKeydown(e, net.id),
-                                          },
-                                          els('span', {
-                                              className: 'cpw-dropdown-icon',
-                                              dangerouslySetInnerHTML: {
-                                                  __html: net.svg || '',
-                                              },
-                                          }),
-                                          els(
-                                              'span',
-                                              { className: 'cpw-dropdown-name' },
-                                              net.name
-                                          )
-                                      )
-                                  )
-                              )
-                          )
+                          els(
+                              'div',
+                              { className: 'cpw-dropdown-search-wrap' },
+                              els('input', {
+                                  type: 'text',
+                                  className: 'cpw-dropdown-search',
+                                  placeholder: 'Search\u2026',
+                                  autoComplete: 'off',
+                                  'aria-label': 'Search cryptocurrencies',
+                                  ref: searchRef,
+                                  value: searchQuery,
+                                  onChange: (e) => setSearchQuery(e.target.value),
+                                  onKeyDown: handleSearchKeydown,
+                              })
+                          ),
+                          ...(filteredNetworks.length
+                              ? filteredNetworks.map((group) =>
+                                    els(
+                                        'div',
+                                        {
+                                            className: 'cpw-dropdown-group',
+                                            role: 'group',
+                                            'aria-label': group.group,
+                                            key: group.group,
+                                        },
+                                        els(
+                                            'div',
+                                            { className: 'cpw-dropdown-group-label' },
+                                            group.group
+                                        ),
+                                        ...group.items.map((net) =>
+                                            els(
+                                                'div',
+                                                {
+                                                    className:
+                                                        'cpw-dropdown-option' +
+                                                        (net.id === selectedNetwork
+                                                            ? ' cpw-dropdown-option--selected'
+                                                            : ''),
+                                                    role: 'option',
+                                                    'aria-selected':
+                                                        net.id === selectedNetwork ? 'true' : 'false',
+                                                    'data-value': net.id,
+                                                    tabIndex: 0,
+                                                    key: net.id,
+                                                    onClick: () => {
+                                                        setSelectedNetwork(net.id);
+                                                        setDropdownOpen(false);
+                                                        setSearchQuery('');
+                                                    },
+                                                    onKeyDown: (e) => handleOptionKeydown(e, net.id),
+                                                },
+                                                els('span', {
+                                                    className: 'cpw-dropdown-icon',
+                                                    dangerouslySetInnerHTML: {
+                                                        __html: net.svg || '',
+                                                    },
+                                                }),
+                                                els(
+                                                    'span',
+                                                    { className: 'cpw-dropdown-name' },
+                                                    net.name
+                                                )
+                                            )
+                                        )
+                                    )
+                                )
+                              : [els('div', { className: 'cpw-dropdown-no-results', key: '_no_results' }, 'No cryptocurrencies found.')])
                       )
                     : null
             )

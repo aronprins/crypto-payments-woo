@@ -131,6 +131,7 @@ function cpw_enqueue_checkout_assets() {
         'nonce_confirm'            => wp_create_nonce( 'cpw_confirm_payment' ),
         'walletconnect_project_id' => $walletconnect_project_id,
         'payment_window'           => $payment_window,
+        'i18n_no_results'          => __( 'No cryptocurrencies found.', 'crypto-payments-woo' ),
     ]);
 }
 add_action( 'wp_enqueue_scripts', 'cpw_enqueue_checkout_assets' );

@@ -326,6 +326,9 @@ class CPW_Gateway extends WC_Payment_Gateway {
         echo '<svg class="cpw-dropdown-arrow" viewBox="0 0 12 12" width="12" height="12" aria-hidden="true"><path fill="#6b7280" d="M6 8L1 3h10z"/></svg>';
         echo '</button>';
         echo '<div class="cpw-dropdown-menu" role="listbox" aria-labelledby="cpw-network-label" tabindex="-1">';
+        echo '<div class="cpw-dropdown-search-wrap">';
+        echo '<input type="text" class="cpw-dropdown-search" placeholder="' . esc_attr__( 'Search…', 'crypto-payments-woo' ) . '" autocomplete="off" aria-label="' . esc_attr__( 'Search cryptocurrencies', 'crypto-payments-woo' ) . '" />';
+        echo '</div>';
 
         foreach ( $groups as $group_name => $group_networks ) {
             echo '<div class="cpw-dropdown-group" role="group" aria-label="' . esc_attr( $group_name ) . '">';
