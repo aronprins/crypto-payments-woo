@@ -402,4 +402,55 @@ class CPW_Networks {
         // Remove empty groups.
         return array_filter( $groups );
     }
+
+    /**
+     * Get the parent→tokens mapping.
+     *
+     * Each key is a parent network ID whose address is shared
+     * by the token IDs in its value array.
+     *
+     * @return array<string, string[]>
+     */
+    public static function get_token_map() {
+        return [
+            'eth'   => [ 'usdt_eth', 'usdc_eth' ],
+            'bnb'   => [ 'usdt_bsc', 'usdc_bsc' ],
+            'matic' => [ 'usdt_polygon', 'usdc_polygon' ],
+            'arb'   => [ 'usdc_arb' ],
+            'base'  => [ 'usdc_base' ],
+            'sol'   => [ 'usdc_sol' ],
+            'trx'   => [ 'usdt_tron' ],
+        ];
+    }
+
+    /**
+     * Given a token ID, return its parent network ID.
+     *
+     * @param string $token_id e.g. 'usdt_eth'.
+     * @return string|null Parent ID (e.g. 'eth') or null if not a token.
+     */
+    public static function get_parent_network( $token_id ) {
+        foreach ( self::get_token_map() as $parent => $tokens ) {
+            if ( in_array( $token_id, $tokens, true ) ) {
+                return $parent;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Get ordered list of non-token (parent) network IDs.
+     *
+     * @return string[]
+     */
+    public static function get_parent_networks() {
+        $all     = self::get_all();
+        $parents = [];
+        foreach ( $all as $id => $network ) {
+            if ( ! $network['is_token'] ) {
+                $parents[] = $id;
+            }
+        }
+        return $parents;
+    }
 }

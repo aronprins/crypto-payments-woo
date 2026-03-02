@@ -22,6 +22,9 @@ class CPW_Gateway extends WC_Payment_Gateway {
         $this->init_form_fields();
         $this->init_settings();
 
+        // One-time migration from per-coin to per-network settings.
+        $this->maybe_migrate_to_network_settings();
+
         $this->title       = $this->get_option( 'title', 'Pay with Crypto' );
         $this->description = $this->get_option( 'description', 'Pay with Bitcoin, Ethereum, Solana, USDT, USDC, and other cryptocurrencies.' );
         $this->enabled     = $this->get_option( 'enabled', 'no' );
@@ -135,32 +138,48 @@ class CPW_Gateway extends WC_Payment_Gateway {
             'wallet_heading' => [
                 'title'       => __( 'Wallet Addresses', 'crypto-payments-woo' ),
                 'type'        => 'title',
-                'description' => __( 'Enter your wallet addresses below. Only networks with an address will appear at checkout. Leave blank to disable a network.', 'crypto-payments-woo' ),
+                'description' => __( 'Enter one address per network. Tokens on the same network share the address — just tick the checkboxes to enable them.', 'crypto-payments-woo' ),
             ],
         ];
 
-        // Add wallet address fields for every supported network.
-        $networks = CPW_Networks::get_all();
-        $groups = CPW_Networks::group_by_category( $networks );
+        // Add wallet address fields grouped by parent network.
+        $networks   = CPW_Networks::get_all();
+        $token_map  = CPW_Networks::get_token_map();
+        $parent_ids = CPW_Networks::get_parent_networks();
 
-        foreach ( $groups as $group_name => $group_networks ) {
-            $fields[ 'heading_' . sanitize_title( $group_name ) ] = [
-                'title'       => $group_name,
-                'type'        => 'title',
-                'description' => '',
+        foreach ( $parent_ids as $parent_id ) {
+            $parent = $networks[ $parent_id ];
+
+            // Section heading.
+            $fields[ 'heading_' . $parent_id ] = [
+                'title' => $parent['name'],
+                'type'  => 'title',
             ];
 
-            foreach ( $group_networks as $id => $network ) {
-                $fields[ 'wallet_' . $id ] = [
-                    'title'       => $network['name'] . ' (' . $network['symbol'] . ')',
-                    'type'        => 'text',
-                    /* translators: %s: network name */
-                    'description' => sprintf( __( 'Your %s receiving address.', 'crypto-payments-woo' ), $network['name'] ),
-                    'default'     => '',
-                    /* translators: %s: crypto symbol */
-                    'placeholder' => sprintf( __( 'Enter your %s address', 'crypto-payments-woo' ), $network['symbol'] ),
-                    'desc_tip'    => true,
-                ];
+            // Wallet address field.
+            $fields[ 'wallet_' . $parent_id ] = [
+                'title'       => $parent['name'] . ' (' . $parent['symbol'] . ')',
+                'type'        => 'text',
+                /* translators: %s: network name */
+                'description' => sprintf( __( 'Your %s receiving address.', 'crypto-payments-woo' ), $parent['name'] ),
+                'default'     => '',
+                /* translators: %s: crypto symbol */
+                'placeholder' => sprintf( __( 'Enter your %s address', 'crypto-payments-woo' ), $parent['symbol'] ),
+                'desc_tip'    => true,
+            ];
+
+            // Token checkboxes (if this network has tokens).
+            if ( isset( $token_map[ $parent_id ] ) ) {
+                foreach ( $token_map[ $parent_id ] as $token_id ) {
+                    $token = $networks[ $token_id ];
+                    $fields[ 'token_' . $token_id ] = [
+                        'title'   => '',
+                        'type'    => 'checkbox',
+                        /* translators: %s: token name, e.g. "USDT (Ethereum)" */
+                        'label'   => sprintf( __( 'Also accept %s', 'crypto-payments-woo' ), $token['name'] ),
+                        'default' => 'no',
+                    ];
+                }
             }
         }
 
@@ -217,6 +236,125 @@ class CPW_Gateway extends WC_Payment_Gateway {
         }
 
         $this->form_fields = $fields;
+    }
+
+    /**
+     * Output admin settings with inline CSS/JS to display token checkboxes
+     * side-by-side beneath their parent wallet address field.
+     */
+    public function admin_options() {
+        parent::admin_options();
+        $prefix = 'woocommerce_' . esc_js( $this->id ) . '_token_';
+        ?>
+        <style>
+            .cpw-token-group {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 2px 18px;
+                padding: 6px 0 0;
+            }
+            .cpw-token-group label {
+                display: inline-flex;
+                align-items: center;
+                gap: 4px;
+            }
+        </style>
+        <script>
+        jQuery(function($) {
+            var prefix = '<?php echo $prefix; ?>';
+            $('input[id^="' + prefix + '"]').closest('tr').each(function() {
+                var $tr    = $(this);
+                var $label = $tr.find('fieldset label');
+                var $prev  = $tr.prev('tr');
+                var $group = $prev.find('.cpw-token-group');
+
+                if ($group.length) {
+                    $group.append($label);
+                } else {
+                    var $walletTd = $prev.find('td.forminp');
+                    if ($walletTd.length) {
+                        $group = $('<div class="cpw-token-group"></div>').append($label);
+                        $walletTd.append($group);
+                    }
+                }
+                $tr.remove();
+            });
+        });
+        </script>
+        <?php
+    }
+
+    /**
+     * One-time migration: convert legacy per-coin wallet settings to
+     * network-first layout with token checkboxes.
+     *
+     * Runs once, gated by settings_version = '2'.
+     */
+    private function maybe_migrate_to_network_settings() {
+        if ( ( $this->settings['settings_version'] ?? '' ) === '2' ) {
+            return;
+        }
+
+        $token_map = CPW_Networks::get_token_map();
+
+        foreach ( $token_map as $parent_id => $tokens ) {
+            foreach ( $tokens as $token_id ) {
+                // If the token had a wallet address configured, enable its checkbox.
+                if ( ! empty( $this->settings[ 'wallet_' . $token_id ] ) ) {
+                    $this->settings[ 'token_' . $token_id ] = 'yes';
+
+                    // If the parent network has no address yet, copy from the token.
+                    if ( empty( $this->settings[ 'wallet_' . $parent_id ] ) ) {
+                        $this->settings[ 'wallet_' . $parent_id ] = $this->settings[ 'wallet_' . $token_id ];
+                    }
+                }
+            }
+        }
+
+        $this->settings['settings_version'] = '2';
+
+        update_option(
+            $this->get_option_key(),
+            apply_filters( 'woocommerce_settings_api_sanitized_fields_' . $this->id, $this->settings ),
+            'yes'
+        );
+    }
+
+    /**
+     * Expand parent network addresses to enabled tokens on save.
+     *
+     * After WooCommerce saves the standard form fields, this copies each
+     * parent wallet address into the wallet_{token_id} keys for every
+     * checked token, so all downstream code continues to read wallet_{coin_id}.
+     *
+     * @return bool
+     */
+    public function process_admin_options() {
+        $result    = parent::process_admin_options();
+        $token_map = CPW_Networks::get_token_map();
+
+        foreach ( $token_map as $parent_id => $tokens ) {
+            $parent_address = $this->settings[ 'wallet_' . $parent_id ] ?? '';
+
+            foreach ( $tokens as $token_id ) {
+                $checkbox_key = 'token_' . $token_id;
+                if ( ! empty( $parent_address ) && ( $this->settings[ $checkbox_key ] ?? '' ) === 'yes' ) {
+                    $this->settings[ 'wallet_' . $token_id ] = $parent_address;
+                } else {
+                    $this->settings[ 'wallet_' . $token_id ] = '';
+                }
+            }
+        }
+
+        $this->settings['settings_version'] = '2';
+
+        update_option(
+            $this->get_option_key(),
+            apply_filters( 'woocommerce_settings_api_sanitized_fields_' . $this->id, $this->settings ),
+            'yes'
+        );
+
+        return $result;
     }
 
     /**
