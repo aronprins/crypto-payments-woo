@@ -1,0 +1,48 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Get version from tag
+        id: version
+        run: echo "version=${GITHUB_REF#refs/tags/v}" >> "$GITHUB_OUTPUT"
+
+      - name: Build release zip
+        run: |
+          PLUGIN_SLUG="crypto-payments-woo"
+          VERSION="${{ steps.version.outputs.version }}"
+          STAGE_DIR="/tmp/$PLUGIN_SLUG"
+
+          mkdir -p "$STAGE_DIR"
+
+          # Read .distignore into rsync excludes.
+          EXCLUDES=()
+          while IFS= read -r line; do
+            [[ "$line" =~ ^#.*$ || -z "$line" ]] && continue
+            EXCLUDES+=(--exclude "$line")
+          done < .distignore
+
+          rsync -rc "${EXCLUDES[@]}" ./ "$STAGE_DIR/"
+
+          cd /tmp
+          zip -rq "${PLUGIN_SLUG}-${VERSION}.zip" "$PLUGIN_SLUG"
+          echo "ZIP_PATH=/tmp/${PLUGIN_SLUG}-${VERSION}.zip" >> "$GITHUB_ENV"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: v${{ steps.version.outputs.version }}
+          generate_release_notes: true
+          files: ${{ env.ZIP_PATH }}

@@ -1,11 +1,11 @@
 <?php
 /**
  * Plugin Name: Crypto Payments for WooCommerce
- * Plugin URI: https://example.com/crypto-payments-woo
+ * Plugin URI: https://aronandsharon.com/plugins/crypto-payments-woo/
  * Description: Accept cryptocurrency payments (BTC, ETH, SOL, USDT, USDC, and more) directly to your own wallets with live price conversion, QR codes, and WalletConnect support.
  * Version: 1.0.0
- * Author: Your Name
- * Author URI: https://example.com
+ * Author: Aron & Sharon
+ * Author URI: https://aronandsharon.com
  * License: GPL-2.0+
  * Text Domain: crypto-payments-woo
  * Requires at least: 5.8

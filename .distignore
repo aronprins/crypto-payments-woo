@@ -1,0 +1,12 @@
+# Files to exclude from the release zip
+.git
+.github
+.gitignore
+.distignore
+.DS_Store
+Thumbs.db
+.idea
+.vscode
+*.swp
+*.swo
+accepted-crypto.html
