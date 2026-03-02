@@ -71,6 +71,12 @@ function cpw_init() {
     new CPW_Frontend();
     new CPW_Admin();
     new CPW_Shortcode();
+
+    // WooCommerce Subscriptions integration (loaded only when the plugin is active).
+    if ( class_exists( 'WC_Subscriptions' ) ) {
+        require_once CPW_PLUGIN_DIR . 'includes/class-cpw-subscriptions.php';
+        new CPW_Subscriptions();
+    }
 }
 add_action( 'plugins_loaded', 'cpw_init' );
 
