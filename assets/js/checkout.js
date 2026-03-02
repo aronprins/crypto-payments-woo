@@ -208,7 +208,7 @@
                 type: 'POST',
                 data: {
                     action: 'cpw_get_crypto_price',
-                    nonce: cpw_data.nonce,
+                    nonce: cpw_data.nonce_price,
                     network_id: networkId,
                     fiat_amount: fiatAmount,
                     currency: currency,
@@ -283,8 +283,7 @@
                 clearInterval(this.timer);
             }
 
-            // Default 15 minutes.
-            this.timerSeconds = 15 * 60;
+            this.timerSeconds = (parseInt(cpw_data.payment_window, 10) || 15) * 60;
             this.updateTimerDisplay();
 
             this.timer = setInterval(function () {
@@ -446,15 +445,15 @@
 
         showError: function (message) {
             $('#cpw-loading').hide();
-            $('#cpw-payment-info')
-                .html(
-                    '<div style="text-align:center; padding:16px; color:#dc2626;">' +
-                    '<p>⚠️ ' + message + '</p>' +
-                    '<button type="button" onclick="jQuery(\'#cpw_network\').trigger(\'change\')" ' +
-                    'style="padding:6px 16px; background:#7c3aed; color:#fff; border:none; border-radius:6px; cursor:pointer;">' +
-                    'Try Again</button></div>'
-                )
-                .show();
+            var $container = $('<div>').css({ textAlign: 'center', padding: '16px', color: '#dc2626' });
+            $container.append($('<p>').text('⚠️ ' + message));
+            $container.append(
+                $('<button>').attr('type', 'button')
+                    .css({ padding: '6px 16px', background: '#7c3aed', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer' })
+                    .text('Try Again')
+                    .on('click', function () { $('#cpw_network').trigger('change'); })
+            );
+            $('#cpw-payment-info').empty().append($container).show();
         },
 
         /**

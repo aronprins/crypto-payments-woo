@@ -45,10 +45,10 @@ class CPW_Blocks_Integration extends AbstractPaymentMethodType {
         $asset_url  = CPW_PLUGIN_URL . 'assets/js/blocks/checkout-block.js';
         $asset_path = CPW_PLUGIN_DIR . 'assets/js/blocks/checkout-block.js';
 
-        // Register the QR code library.
+        // Register the QR code library (bundled locally).
         wp_register_script(
             'cpw-qrcode',
-            'https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js',
+            CPW_PLUGIN_URL . 'assets/js/vendor/qrcode.min.js',
             [],
             '1.0.0',
             true
@@ -64,11 +64,17 @@ class CPW_Blocks_Integration extends AbstractPaymentMethodType {
         );
 
         // Pass settings to the script.
+        $payment_window = isset( $this->settings['payment_window'] )
+            ? absint( $this->settings['payment_window'] )
+            : 15;
+
         wp_localize_script( 'cpw-blocks-checkout', 'cpw_block_data', [
-            'ajax_url'  => admin_url( 'admin-ajax.php' ),
-            'nonce'     => wp_create_nonce( 'cpw_nonce' ),
-            'networks'  => $this->get_enabled_networks_for_js(),
-            'gateway_id' => $this->name,
+            'ajax_url'       => admin_url( 'admin-ajax.php' ),
+            'nonce_price'    => wp_create_nonce( 'cpw_get_crypto_price' ),
+            'nonce_confirm'  => wp_create_nonce( 'cpw_confirm_payment' ),
+            'networks'       => $this->get_enabled_networks_for_js(),
+            'gateway_id'     => $this->name,
+            'payment_window' => $payment_window,
         ]);
 
         // Also enqueue the CSS.
@@ -94,8 +100,10 @@ class CPW_Blocks_Integration extends AbstractPaymentMethodType {
             'description' => $this->get_setting( 'description', 'Pay with Bitcoin, Ethereum, Solana, stablecoins, and more.' ),
             'supports'    => [ 'products' ],
             'networks'    => $this->get_enabled_networks_for_js(),
-            'ajax_url'    => admin_url( 'admin-ajax.php' ),
-            'nonce'       => wp_create_nonce( 'cpw_nonce' ),
+            'ajax_url'       => admin_url( 'admin-ajax.php' ),
+            'nonce_price'    => wp_create_nonce( 'cpw_get_crypto_price' ),
+            'nonce_confirm'  => wp_create_nonce( 'cpw_confirm_payment' ),
+            'payment_window' => isset( $this->settings['payment_window'] ) ? absint( $this->settings['payment_window'] ) : 15,
         ];
     }
 

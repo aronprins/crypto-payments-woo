@@ -19,7 +19,8 @@
     const description = decodeEntities(settings.description || '');
     const networks = settings.networks || blockData.networks || [];
     const ajaxUrl = settings.ajax_url || blockData.ajax_url || '';
-    const nonce = settings.nonce || blockData.nonce || '';
+    const nonce = settings.nonce_price || blockData.nonce_price || '';
+    const paymentWindowMinutes = parseInt(settings.payment_window || blockData.payment_window || '15', 10) || 15;
 
     /**
      * Label component shown in the payment method list.
@@ -145,7 +146,7 @@
                     setLoading(false);
                     if (response.success) {
                         setPaymentData(response.data);
-                        setTimerSeconds(15 * 60);
+                        setTimerSeconds(paymentWindowMinutes * 60);
                     } else {
                         setError(response.data?.message || 'Could not fetch price.');
                     }

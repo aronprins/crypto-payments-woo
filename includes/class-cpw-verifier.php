@@ -276,7 +276,7 @@ class CPW_Verifier {
                     $result['confirmations'] ?? 0
                 );
                 if ( $explorer_url ) {
-                    $note .= sprintf( ' <a href="%s" target="_blank">View on explorer</a>', $explorer_url );
+                    $note .= sprintf( ' <a href="%s" target="_blank">View on explorer</a>', esc_url( $explorer_url ) );
                 }
 
                 $order->add_order_note( $note );

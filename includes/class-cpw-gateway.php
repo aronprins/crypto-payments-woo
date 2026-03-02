@@ -216,6 +216,86 @@ class CPW_Gateway extends WC_Payment_Gateway {
     }
 
     /**
+     * Validate wallet address fields on save.
+     *
+     * @param string $key   The field key.
+     * @param string $value The submitted value.
+     * @return string The sanitized value.
+     */
+    public function validate_text_field( $key, $value ) {
+        $value = parent::validate_text_field( $key, $value );
+
+        // Only validate wallet_* fields.
+        if ( strpos( $key, 'wallet_' ) !== 0 ) {
+            return $value;
+        }
+
+        // Empty is fine — it just disables the network.
+        if ( empty( $value ) ) {
+            return $value;
+        }
+
+        $network_id = substr( $key, 7 ); // Strip 'wallet_' prefix.
+        $networks   = CPW_Networks::get_all();
+        $network    = $networks[ $network_id ] ?? null;
+
+        if ( ! $network ) {
+            return $value;
+        }
+
+        $valid = true;
+        $format_hint = '';
+
+        // EVM chains: 0x + 40 hex chars.
+        if ( ! empty( $network['is_evm'] ) ) {
+            $valid = (bool) preg_match( '/^0x[0-9a-fA-F]{40}$/', $value );
+            $format_hint = '0x followed by 40 hex characters';
+        }
+        // Bitcoin: starts with 1, 3, or bc1.
+        elseif ( $network_id === 'btc' ) {
+            $valid = (bool) preg_match( '/^(1[a-km-zA-HJ-NP-Z1-9]{25,34}|3[a-km-zA-HJ-NP-Z1-9]{25,34}|bc1[a-zA-HJ-NP-Z0-9]{25,90})$/', $value );
+            $format_hint = 'starting with 1, 3, or bc1';
+        }
+        // Litecoin: starts with L, M, or ltc1.
+        elseif ( $network_id === 'ltc' ) {
+            $valid = (bool) preg_match( '/^[LM3][a-km-zA-HJ-NP-Z1-9]{26,33}$|^ltc1[a-zA-HJ-NP-Z0-9]{25,90}$/', $value );
+            $format_hint = 'starting with L, M, or ltc1';
+        }
+        // Dogecoin: starts with D.
+        elseif ( $network_id === 'doge' ) {
+            $valid = (bool) preg_match( '/^D[5-9A-HJ-NP-U][1-9A-HJ-NP-Za-km-z]{32}$/', $value );
+            $format_hint = 'starting with D';
+        }
+        // Solana: base58, 32-44 chars.
+        elseif ( in_array( $network_id, [ 'sol', 'usdc_sol' ], true ) ) {
+            $valid = (bool) preg_match( '/^[1-9A-HJ-NP-Za-km-z]{32,44}$/', $value );
+            $format_hint = '32-44 base58 characters';
+        }
+        // XRP: starts with r.
+        elseif ( $network_id === 'xrp' ) {
+            $valid = (bool) preg_match( '/^r[1-9A-HJ-NP-Za-km-z]{24,34}$/', $value );
+            $format_hint = 'starting with r';
+        }
+        // TRON: starts with T, 34 chars.
+        elseif ( in_array( $network_id, [ 'trx', 'usdt_tron' ], true ) ) {
+            $valid = (bool) preg_match( '/^T[1-9A-HJ-NP-Za-km-z]{33}$/', $value );
+            $format_hint = 'starting with T, 34 characters';
+        }
+
+        if ( ! $valid ) {
+            WC_Admin_Settings::add_error(
+                sprintf(
+                    '%s wallet address appears invalid (%s). Please double-check it.',
+                    $network['name'],
+                    $format_hint
+                )
+            );
+        }
+
+        return $value;
+    }
+
+    /**
      * Render the payment fields on the checkout form.
      */
     public function payment_fields() {
@@ -367,6 +447,40 @@ class CPW_Gateway extends WC_Payment_Gateway {
             $crypto_amount = $order->get_meta( '_cpw_crypto_amount' );
         }
 
+        // Validate tx_hash format if provided.
+        if ( $tx_hash && function_exists( 'cpw_validate_tx_hash' ) && ! cpw_validate_tx_hash( $tx_hash, $network_id ) ) {
+            wc_add_notice( 'Invalid transaction hash format.', 'error' );
+            return [ 'result' => 'failure' ];
+        }
+
+        // Server-side quote verification: ensure the submitted amount matches what we quoted.
+        if ( WC()->session ) {
+            $quoted_amount  = WC()->session->get( 'cpw_quoted_amount' );
+            $quoted_network = WC()->session->get( 'cpw_quoted_network' );
+            $quoted_at      = WC()->session->get( 'cpw_quoted_at' );
+            $payment_window = WC()->session->get( 'cpw_payment_window' ) ?: 15;
+
+            if ( $quoted_amount && $quoted_network ) {
+                // Check the quote hasn't expired.
+                if ( $quoted_at && ( time() - $quoted_at ) > ( $payment_window * 60 ) ) {
+                    wc_add_notice( 'Your price quote has expired. Please select a cryptocurrency again to get a fresh quote.', 'error' );
+                    return [ 'result' => 'failure' ];
+                }
+
+                // Check the amount matches what we quoted (prevent client-side tampering).
+                if ( $crypto_amount !== $quoted_amount || $network_id !== $quoted_network ) {
+                    wc_add_notice( 'Payment amount mismatch. Please select a cryptocurrency again.', 'error' );
+                    return [ 'result' => 'failure' ];
+                }
+            }
+
+            // Clear the quote from session after use.
+            WC()->session->set( 'cpw_quoted_amount', null );
+            WC()->session->set( 'cpw_quoted_network', null );
+            WC()->session->set( 'cpw_quoted_at', null );
+            WC()->session->set( 'cpw_payment_window', null );
+        }
+
         $networks = CPW_Networks::get_all();
         $network = $networks[ $network_id ] ?? null;
 
@@ -394,7 +508,7 @@ class CPW_Gateway extends WC_Payment_Gateway {
                 $symbol,
                 $crypto_amount,
                 $symbol,
-                $tx_hash
+                esc_html( $tx_hash )
             );
         } else {
             $note = sprintf(

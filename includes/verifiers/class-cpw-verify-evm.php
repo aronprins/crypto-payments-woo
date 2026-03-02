@@ -267,11 +267,10 @@ class CPW_Verify_EVM {
             return false;
         }
 
-        // Convert hex value to decimal.
-        $value_wei = hexdec( $tx['value'] ?? '0x0' );
-        $value = $value_wei / pow( 10, $decimals );
+        // Convert hex value to decimal using precision-safe math.
+        $value = $this->hex_to_decimal( $tx['value'] ?? '0x0', $decimals );
 
-        return $this->amounts_match( $value, (float) $expected_amount );
+        return $this->amounts_match( (float) $value, (float) $expected_amount );
     }
 
     /**
@@ -302,9 +301,8 @@ class CPW_Verify_EVM {
                 continue;
             }
 
-            // Decode the value from log data.
-            $value_raw = hexdec( $log['data'] ?? '0x0' );
-            $value = $value_raw / pow( 10, $decimals );
+            // Decode the value from log data using precision-safe math.
+            $value = (float) $this->hex_to_decimal( $log['data'] ?? '0x0', $decimals );
 
             if ( $this->amounts_match( $value, (float) $expected_amount ) ) {
                 return true;
@@ -441,6 +439,41 @@ class CPW_Verify_EVM {
         $tolerance = max( $tolerance, $min_tolerance );
 
         return abs( $actual - $expected ) <= $tolerance;
+    }
+
+    /**
+     * Convert a hex value to a human-readable decimal amount with precision-safe math.
+     *
+     * Uses GMP when available (handles arbitrarily large integers), falls back to bcmath,
+     * then to hexdec() as a last resort.
+     *
+     * @param string $hex      The hex value (e.g., '0x1234').
+     * @param int    $decimals The number of decimals for the token/coin.
+     * @return string The decimal amount as a string.
+     */
+    private function hex_to_decimal( $hex, $decimals ) {
+        $hex_clean = str_replace( '0x', '', $hex );
+        $hex_clean = ltrim( $hex_clean, '0' ) ?: '0';
+
+        if ( function_exists( 'gmp_init' ) ) {
+            $value_raw = gmp_strval( gmp_init( $hex_clean, 16 ) );
+            if ( function_exists( 'bcdiv' ) ) {
+                return bcdiv( $value_raw, bcpow( '10', (string) $decimals ), 18 );
+            }
+            return (string) ( (float) $value_raw / pow( 10, $decimals ) );
+        }
+
+        if ( function_exists( 'bcdiv' ) ) {
+            // Manual hex-to-dec using bcmath.
+            $dec = '0';
+            for ( $i = 0, $len = strlen( $hex_clean ); $i < $len; $i++ ) {
+                $dec = bcadd( bcmul( $dec, '16' ), (string) hexdec( $hex_clean[ $i ] ) );
+            }
+            return bcdiv( $dec, bcpow( '10', (string) $decimals ), 18 );
+        }
+
+        // Last resort fallback (may lose precision for very large values).
+        return (string) ( hexdec( $hex_clean ) / pow( 10, $decimals ) );
     }
 
     /**

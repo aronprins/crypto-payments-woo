@@ -74,7 +74,7 @@ class CPW_Price_Converter {
      */
     private function add_unique_dust( $crypto_amount, $price_usd ) {
         // Generate a random dust amount worth ~$0.01 to $0.09 in fiat.
-        $fiat_dust = mt_rand( 1, 9 ) / 100; // $0.01 to $0.09.
+        $fiat_dust = random_int( 1, 9 ) / 100; // $0.01 to $0.09.
         $crypto_dust = $fiat_dust / $price_usd;
 
         return $crypto_amount + $crypto_dust;
@@ -118,20 +118,20 @@ class CPW_Price_Converter {
         $response = wp_remote_get( $url, $args );
 
         if ( is_wp_error( $response ) ) {
-            error_log( 'CPW Price Converter: API request failed - ' . $response->get_error_message() );
+            cpw_log( 'Price Converter: API request failed - ' . $response->get_error_message() );
             return false;
         }
 
         $status_code = wp_remote_retrieve_response_code( $response );
         if ( $status_code !== 200 ) {
-            error_log( 'CPW Price Converter: API returned status ' . $status_code );
+            cpw_log( 'Price Converter: API returned status ' . $status_code );
             return false;
         }
 
         $body = json_decode( wp_remote_retrieve_body( $response ), true );
 
         if ( ! isset( $body[ $coingecko_id ][ $fiat_currency ] ) ) {
-            error_log( 'CPW Price Converter: Unexpected response format for ' . $coingecko_id );
+            cpw_log( 'Price Converter: Unexpected response format for ' . $coingecko_id );
             return false;
         }
 
