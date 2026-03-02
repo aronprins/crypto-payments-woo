@@ -29,6 +29,23 @@ class CPW_Gateway extends WC_Payment_Gateway {
         $this->description = $this->get_option( 'description', 'Pay with Bitcoin, Ethereum, Solana, USDT, USDC, and other cryptocurrencies.' );
         $this->enabled     = $this->get_option( 'enabled', 'no' );
 
+        // Declare supported features.
+        $this->supports = [ 'products' ];
+
+        if ( class_exists( 'WC_Subscriptions' ) ) {
+            $this->supports = array_merge( $this->supports, [
+                'subscriptions',
+                'subscription_cancellation',
+                'subscription_suspension',
+                'subscription_reactivation',
+                'subscription_amount_changes',
+                'subscription_date_changes',
+                'subscription_payment_method_change_customer',
+                'subscription_payment_method_change_admin',
+                'multiple_subscriptions',
+            ] );
+        }
+
         // Save settings in admin.
         add_action( 'woocommerce_update_options_payment_gateways_' . $this->id, [ $this, 'process_admin_options' ] );
 
