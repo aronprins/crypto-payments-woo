@@ -16,6 +16,16 @@ class CPW_Frontend {
     }
 
     /**
+     * Whether this request shows the block checkout, not the classic form or the order-pay page.
+     *
+     * @return bool
+     */
+    private function is_block_checkout() {
+        return ! is_wc_endpoint_url( 'order-pay' )
+            && has_block( 'woocommerce/checkout', (int) wc_get_page_id( 'checkout' ) );
+    }
+
+    /**
      * Enqueue frontend assets on checkout.
      */
     public function enqueue_checkout_assets() {
@@ -37,6 +47,12 @@ class CPW_Frontend {
             '1.0.0',
             true
         );
+
+        // The block checkout has its own script (CPW_Blocks_Integration). The classic script binds to
+        // the same dropdown markup and would stop the block's coin menu from opening on a mouse click.
+        if ( $this->is_block_checkout() ) {
+            return;
+        }
 
         wp_enqueue_script(
             'cpw-checkout',

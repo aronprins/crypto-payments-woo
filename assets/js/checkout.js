@@ -34,7 +34,9 @@
 
         initDropdown: function () {
             var self = this;
-            var $dropdown = $('.cpw-dropdown');
+            // Leave the block checkout's dropdown to its own script: this one's click handler
+            // stops the event, so the block's menu would never open on a mouse click.
+            var $dropdown = $('.cpw-dropdown').not('.cpw-block-wrapper .cpw-dropdown');
             if (!$dropdown.length) return;
 
             var $trigger = $dropdown.find('.cpw-dropdown-trigger');
