@@ -3,9 +3,10 @@
  * Plugin Name: Crypto Payments for WooCommerce
  * Plugin URI: https://aronandsharon.com/plugins/crypto-payments-woo/
  * Description: Accept cryptocurrency payments (BTC, ETH, SOL, USDT, USDC, and more) directly to your own wallets with live price conversion, QR codes, and WalletConnect support.
- * Version: 1.2.1
+ * Version: 1.3.0
  * Author: Aron & Sharon
  * Author URI: https://aronandsharon.com
+ * Update URI: https://github.com/aronprins/crypto-payments-woo
  * License: GPL-2.0+
  * Text Domain: crypto-payments-woo
  * Requires at least: 5.8
@@ -18,10 +19,14 @@ if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
 
-define( 'CPW_VERSION', '1.2.1' );
+define( 'CPW_VERSION', '1.3.0' );
 define( 'CPW_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'CPW_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 define( 'CPW_PLUGIN_BASENAME', plugin_basename( __FILE__ ) );
+
+// Updates work whether or not WooCommerce is active.
+require_once CPW_PLUGIN_DIR . 'includes/class-cpw-updater.php';
+CPW_Updater::init();
 
 /**
  * Check if WooCommerce is active before initializing.

@@ -2,6 +2,7 @@
 .git
 .github
 .gitignore
+.gitattributes
 .distignore
 .DS_Store
 Thumbs.db
@@ -9,4 +10,9 @@ Thumbs.db
 .vscode
 *.swp
 *.swo
+.claude
+build
+AGENTS.md
+CLAUDE.md
+README.md
 accepted-crypto.html
