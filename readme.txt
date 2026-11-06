@@ -2,7 +2,7 @@
 Requires at least: 5.8
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 1.3.0
+Stable tag: 1.3.1
 License: GPLv2 or later
 
 Accept cryptocurrency payments directly to your own wallets, with live price conversion, QR codes and on-chain verification.
@@ -25,6 +25,12 @@ Customers pay straight to your own wallet addresses: no payment processor and no
 3. Enable the gateway and enter a wallet address for each network you want to accept.
 
 == Changelog ==
+
+= 1.3.1 =
+* Fix: a checkout error on sites running PHP 7.4 with WordPress 5.8.
+* Improved: output escaping and request handling, following Plugin Check.
+* Improved: tested with WordPress 7.1 and WooCommerce 11.2.
+* Changed: debug messages now go only to the WooCommerce log.
 
 = 1.3.0 =
 * New: updates now come from GitHub releases through the normal WordPress update screens, with optional automatic updates.
