@@ -29,6 +29,23 @@ class CPW_Icons {
     }
 
     /**
+     * Elements and attributes the icons use, for escaping them with wp_kses().
+     *
+     * @return array
+     */
+    public static function allowed_html() {
+        return [
+            'svg'            => [ 'xmlns' => true, 'viewbox' => true, 'aria-hidden' => true ],
+            'defs'           => [],
+            'lineargradient' => [ 'id' => true, 'gradientunits' => true, 'x1' => true, 'y1' => true, 'x2' => true, 'y2' => true ],
+            'stop'           => [ 'offset' => true, 'stop-color' => true ],
+            'circle'         => [ 'cx' => true, 'cy' => true, 'r' => true, 'fill' => true, 'fill-opacity' => true ],
+            'path'           => [ 'd' => true, 'fill' => true, 'fill-opacity' => true ],
+            'text'           => [ 'x' => true, 'y' => true, 'fill' => true, 'font-family' => true, 'font-size' => true, 'font-weight' => true, 'text-anchor' => true ],
+        ];
+    }
+
+    /**
      * Map every network key to its SVG markup.
      *
      * @return array

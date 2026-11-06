@@ -3,6 +3,8 @@
 #
 #   git tag v1.3.0 && git push origin v1.3.0
 #
+# The release is named exactly after its tag (v1.3.0). See AGENTS.md.
+#
 # Tags with a hyphen (v1.3.0-beta.1) are published as pre-releases, which sites ignore.
 
 name: Release
@@ -73,8 +75,8 @@ jobs:
           if gh release view "$GITHUB_REF_NAME" > /dev/null 2>&1; then
             # A release drafted by hand for this tag: keep its notes, attach the files (replacing old ones) and publish it.
             gh release upload "$GITHUB_REF_NAME" $ASSETS --clobber
-            gh release edit "$GITHUB_REF_NAME" --draft=false $FLAGS
+            gh release edit "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --draft=false $FLAGS
           else
             # gh uploads the files before publishing, so sites never see a release without its zip.
-            gh release create "$GITHUB_REF_NAME" $ASSETS --title "Crypto Payments for WooCommerce ${GITHUB_REF_NAME#v}" --notes-file build/notes.md --verify-tag $FLAGS
+            gh release create "$GITHUB_REF_NAME" $ASSETS --title "$GITHUB_REF_NAME" --notes-file build/notes.md --verify-tag $FLAGS
           fi

@@ -12,7 +12,7 @@
  * Requires at least: 5.8
  * Requires PHP: 7.4
  * WC requires at least: 6.0
- * WC tested up to: 9.0
+ * WC tested up to: 11.2
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -97,11 +97,6 @@ register_deactivation_hook( __FILE__, [ 'CPW_Verifier', 'deactivate' ] );
  * @param string $message The message to log.
  */
 function cpw_log( $message ) {
-    if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
-        error_log( '[Crypto Payments] ' . $message );
-    }
-
-    // Also log to WooCommerce logger if available.
     if ( function_exists( 'wc_get_logger' ) ) {
         wc_get_logger()->info( $message, [ 'source' => 'crypto-payments' ] );
     }

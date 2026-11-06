@@ -30,7 +30,7 @@ class CPW_Ajax {
         }
 
         // Simple rate limiting: max 30 requests per minute per IP.
-        $ip_hash = md5( $_SERVER['REMOTE_ADDR'] ?? 'unknown' );
+        $ip_hash = md5( sanitize_text_field( wp_unslash( $_SERVER['REMOTE_ADDR'] ?? 'unknown' ) ) );
         $rate_key = 'cpw_rate_' . $ip_hash;
         $rate_count = (int) get_transient( $rate_key );
         if ( $rate_count >= 30 ) {
@@ -38,9 +38,9 @@ class CPW_Ajax {
         }
         set_transient( $rate_key, $rate_count + 1, 60 );
 
-        $network_id = sanitize_text_field( $_POST['network_id'] ?? '' );
+        $network_id = sanitize_text_field( wp_unslash( $_POST['network_id'] ?? '' ) );
         $fiat_amount = floatval( $_POST['fiat_amount'] ?? 0 );
-        $currency = strtoupper( sanitize_text_field( $_POST['currency'] ?? 'USD' ) );
+        $currency = strtoupper( sanitize_text_field( wp_unslash( $_POST['currency'] ?? 'USD' ) ) );
 
         // Validate currency against WooCommerce supported currencies.
         $supported_currencies = array_keys( get_woocommerce_currencies() );
@@ -98,10 +98,10 @@ class CPW_Ajax {
         check_ajax_referer( 'cpw_confirm_payment', 'nonce' );
 
         $order_id   = intval( $_POST['order_id'] ?? 0 );
-        $order_key  = sanitize_text_field( $_POST['order_key'] ?? '' );
-        $network_id = sanitize_text_field( $_POST['network_id'] ?? '' );
-        $tx_hash    = sanitize_text_field( $_POST['tx_hash'] ?? '' );
-        $amount     = sanitize_text_field( $_POST['crypto_amount'] ?? '' );
+        $order_key  = sanitize_text_field( wp_unslash( $_POST['order_key'] ?? '' ) );
+        $network_id = sanitize_text_field( wp_unslash( $_POST['network_id'] ?? '' ) );
+        $tx_hash    = sanitize_text_field( wp_unslash( $_POST['tx_hash'] ?? '' ) );
+        $amount     = sanitize_text_field( wp_unslash( $_POST['crypto_amount'] ?? '' ) );
 
         if ( ! $order_id ) {
             wp_send_json_error( [ 'message' => __( 'Invalid order.', 'crypto-payments-woo' ) ] );

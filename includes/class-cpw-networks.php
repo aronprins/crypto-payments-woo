@@ -387,7 +387,7 @@ class CPW_Networks {
             $placed = false;
             if ( $network['is_token'] ) {
                 foreach ( $stablecoin_chain_map as $suffix => $group ) {
-                    if ( str_ends_with( $id, $suffix ) ) {
+                    if ( substr( $id, -strlen( $suffix ) ) === $suffix ) {
                         $groups[ $group ][ $id ] = $network;
                         $placed = true;
                         break;

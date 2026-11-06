@@ -205,6 +205,8 @@ The new coin will automatically appear in settings (for wallet address) and at c
 
 The plugin updates itself from this repo's GitHub releases.
 
+A release is named exactly after its tag (`v1.3.0`). See `AGENTS.md` for the full notes.
+
 1. Set the same version in the `Version:` header and `CPW_VERSION` in `crypto-payments-woo.php`, and in `Stable tag:` in `readme.txt`.
 2. Add a `= x.y.z =` entry at the top of `== Changelog ==` in `readme.txt`. It becomes the release notes.
 3. Commit to `main`, then tag and push: `git tag vx.y.z && git push origin vx.y.z`.
