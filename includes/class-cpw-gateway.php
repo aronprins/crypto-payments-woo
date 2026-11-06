@@ -246,8 +246,8 @@ class CPW_Gateway extends WC_Payment_Gateway {
                 /* translators: %s: explorer service name */
                 'title'       => sprintf( __( '%s API Key', 'crypto-payments-woo' ), $info[0] ),
                 'type'        => 'text',
-                /* translators: %s: explorer URL */
-                'description' => sprintf( __( 'Free at <a href="%s" target="_blank">%s</a>', 'crypto-payments-woo' ), $info[1], $info[1] ),
+                /* translators: 1: explorer URL, 2: explorer URL shown as the link text */
+                'description' => sprintf( __( 'Free at <a href="%1$s" target="_blank">%2$s</a>', 'crypto-payments-woo' ), $info[1], $info[1] ),
                 'default'     => '',
                 'placeholder' => __( 'Paste your API key', 'crypto-payments-woo' ),
             ];
@@ -263,7 +263,7 @@ class CPW_Gateway extends WC_Payment_Gateway {
     public function admin_options() {
         parent::admin_options();
         CPW_Updater::render_settings_section();
-        $prefix = 'woocommerce_' . esc_js( $this->id ) . '_token_';
+        $prefix = 'woocommerce_' . $this->id . '_token_';
         ?>
         <style>
             .cpw-token-group {
@@ -280,7 +280,7 @@ class CPW_Gateway extends WC_Payment_Gateway {
         </style>
         <script>
         jQuery(function($) {
-            var prefix = '<?php echo $prefix; ?>';
+            var prefix = '<?php echo esc_js( $prefix ); ?>';
             $('input[id^="' + prefix + '"]').closest('tr').each(function() {
                 var $tr    = $(this);
                 var $label = $tr.find('fieldset label');
@@ -497,7 +497,7 @@ class CPW_Gateway extends WC_Payment_Gateway {
                     . 'data-color="' . esc_attr( $network['color'] ) . '" '
                     . 'data-is-evm="' . esc_attr( $network['is_evm'] ? '1' : '0' ) . '" '
                     . 'tabindex="-1">';
-                echo '<span class="cpw-dropdown-icon">' . CPW_Icons::get_svg( $id ) . '</span>';
+                echo '<span class="cpw-dropdown-icon">' . wp_kses( CPW_Icons::get_svg( $id ), CPW_Icons::allowed_html() ) . '</span>';
                 echo '<span class="cpw-dropdown-name">' . esc_html( $network['name'] ) . '</span>';
                 echo '</div>';
             }
@@ -559,6 +559,8 @@ class CPW_Gateway extends WC_Payment_Gateway {
      * Block checkout handles validation via the onPaymentSetup JS callback.
      */
     public function validate_fields() {
+        // phpcs:disable WordPress.Security.NonceVerification.Missing -- WooCommerce verifies the checkout nonce before calling this.
+
         // In block checkout context, $_POST may not contain our fields.
         // The block JS handles validation via onPaymentSetup.
         if ( ! isset( $_POST['cpw_network'] ) ) {
@@ -570,7 +572,9 @@ class CPW_Gateway extends WC_Payment_Gateway {
             return false;
         }
 
-        $network_id = sanitize_text_field( $_POST['cpw_network'] );
+        $network_id = sanitize_text_field( wp_unslash( $_POST['cpw_network'] ) );
+        // phpcs:enable WordPress.Security.NonceVerification.Missing
+
         $networks = CPW_Networks::get_all();
 
         if ( ! isset( $networks[ $network_id ] ) ) {
@@ -597,9 +601,11 @@ class CPW_Gateway extends WC_Payment_Gateway {
         $order = wc_get_order( $order_id );
 
         // Try to get data from $_POST (classic checkout) or from order meta (block checkout).
-        $network_id    = sanitize_text_field( $_POST['cpw_network'] ?? '' );
-        $tx_hash       = sanitize_text_field( $_POST['cpw_tx_hash'] ?? '' );
-        $crypto_amount = sanitize_text_field( $_POST['cpw_crypto_amount'] ?? '' );
+        // phpcs:disable WordPress.Security.NonceVerification.Missing -- WooCommerce verifies the checkout nonce before calling this.
+        $network_id    = sanitize_text_field( wp_unslash( $_POST['cpw_network'] ?? '' ) );
+        $tx_hash       = sanitize_text_field( wp_unslash( $_POST['cpw_tx_hash'] ?? '' ) );
+        $crypto_amount = sanitize_text_field( wp_unslash( $_POST['cpw_crypto_amount'] ?? '' ) );
+        // phpcs:enable WordPress.Security.NonceVerification.Missing
 
         // If not in POST, check if it was already saved by the block checkout handler.
         if ( ! $network_id ) {
