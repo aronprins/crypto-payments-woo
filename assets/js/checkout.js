@@ -234,16 +234,6 @@
         fetchPrice: function (networkId) {
             var self = this;
 
-            // Get the order total from the checkout page.
-            var fiatAmount = this.getOrderTotal();
-            var currency = this.getStoreCurrency();
-
-            if (!fiatAmount || fiatAmount <= 0) {
-                // Fallback: try to read from a hidden field or the page.
-                console.warn('CPW: Could not determine order total.');
-                return;
-            }
-
             // Show loading state.
             $('#cpw-payment-details').show();
             $('#cpw-loading').show();
@@ -256,12 +246,12 @@
                     action: 'cpw_get_crypto_price',
                     nonce: cpw_data.nonce_price,
                     network_id: networkId,
-                    fiat_amount: fiatAmount,
-                    currency: currency,
+                    order_id: cpw_data.order_id,
+                    order_key: cpw_data.order_key,
                 },
                 success: function (response) {
                     if (response.success) {
-                        self.displayPaymentInfo(response.data, fiatAmount, currency);
+                        self.displayPaymentInfo(response.data);
                     } else {
                         self.showError(response.data.message || 'Could not fetch price.');
                     }
@@ -272,11 +262,11 @@
             });
         },
 
-        displayPaymentInfo: function (data, fiatAmount, currency) {
+        displayPaymentInfo: function (data) {
             // Populate the payment info.
             $('#cpw-crypto-amount').text(data.crypto_amount);
             $('#cpw-crypto-symbol').text(data.symbol);
-            $('#cpw-fiat-equiv').text('≈ ' + this.formatCurrency(fiatAmount, currency));
+            $('#cpw-fiat-equiv').text('≈ ' + this.formatCurrency(data.fiat_amount, data.currency));
             $('#cpw-wallet-address').text(data.wallet_address);
 
             // Set hidden field for form submission.
@@ -410,72 +400,6 @@
                     $(buttonSelector).removeClass('copied').text('📋');
                 }, 2000);
             }
-        },
-
-        getOrderTotal: function () {
-            // Try to get the total from WooCommerce's checkout.
-            // Method 1: From the order review table.
-            var totalEl = document.querySelector(
-                '.order-total .woocommerce-Price-amount bdi, .order-total .amount'
-            );
-            if (totalEl) {
-                var text = totalEl.textContent || totalEl.innerText;
-                // Remove currency symbols and thousands separators, keep decimal.
-                var cleaned = text.replace(/[^\d.,]/g, '');
-                // Handle different locale formats.
-                // If there's both a comma and period, determine which is the decimal.
-                if (cleaned.indexOf(',') > -1 && cleaned.indexOf('.') > -1) {
-                    if (cleaned.lastIndexOf(',') > cleaned.lastIndexOf('.')) {
-                        // Comma is the decimal separator (e.g., 1.234,56).
-                        cleaned = cleaned.replace(/\./g, '').replace(',', '.');
-                    } else {
-                        // Period is the decimal separator (e.g., 1,234.56).
-                        cleaned = cleaned.replace(/,/g, '');
-                    }
-                } else if (cleaned.indexOf(',') > -1) {
-                    // Could be decimal or thousands. If 3 digits after comma, it's thousands.
-                    var parts = cleaned.split(',');
-                    if (parts[parts.length - 1].length === 3 && parts.length === 2) {
-                        cleaned = cleaned.replace(',', '');
-                    } else {
-                        cleaned = cleaned.replace(',', '.');
-                    }
-                }
-                return parseFloat(cleaned) || 0;
-            }
-
-            return 0;
-        },
-
-        getStoreCurrency: function () {
-            // Try to detect from the page. Fallback to USD.
-            var currencyEl = document.querySelector(
-                '.woocommerce-Price-currencySymbol'
-            );
-            if (currencyEl) {
-                var sym = currencyEl.textContent.trim();
-                var symbolMap = {
-                    '$': 'USD',
-                    '€': 'EUR',
-                    '£': 'GBP',
-                    '¥': 'JPY',
-                    'A$': 'AUD',
-                    'C$': 'CAD',
-                    'CHF': 'CHF',
-                    'kr': 'SEK',
-                    'R$': 'BRL',
-                };
-                if (symbolMap[sym]) {
-                    return symbolMap[sym];
-                }
-            }
-
-            // Fallback: check for wc_checkout_params if available.
-            if (typeof wc_checkout_params !== 'undefined' && wc_checkout_params.currency) {
-                return wc_checkout_params.currency;
-            }
-
-            return 'USD';
         },
 
         formatCurrency: function (amount, currency) {

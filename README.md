@@ -96,7 +96,7 @@ Accept cryptocurrency payments directly to your own wallets — no third-party p
 | **Wallet Addresses** | One field per supported network — only filled ones are enabled |
 | **Enable Auto-Verification** | Automatically verify payments on-chain and complete orders |
 | **Unique Payment Amounts** | Add tiny dust amounts for reliable payment matching (default: on) |
-| **EVM Explorer API Keys** | Free API keys for Etherscan, BscScan, PolygonScan, etc. (required for EVM auto-verification) |
+| **EVM Explorer API Keys** | One Etherscan API key covers its chains; BNB Chain, Optimism and Base need a paid plan. Avalanche needs no key. |
 
 ### Price Conversion
 - Prices are fetched from CoinGecko's free API.
@@ -114,17 +114,19 @@ Enable **Auto-Verification** in the plugin settings to have the plugin automatic
 
 | Chain | API Used | API Key Required? |
 |-------|----------|-------------------|
-| Ethereum, Polygon, Arbitrum, Optimism, Base, BNB Chain, Avalanche | Etherscan-family APIs | Yes (free) |
+| Ethereum, Polygon, Arbitrum | Etherscan API V2 | Yes (one free key covers all) |
+| BNB Chain, Optimism, Base | Etherscan API V2 | Yes (paid Etherscan plan) |
+| Avalanche | Routescan | No |
 | Bitcoin | mempool.space | No |
 | Litecoin, Dogecoin | Blockchair | No |
-| Solana | Solana RPC / Solscan | No |
+| Solana | Solana RPC | No |
 | XRP | XRPL JSON-RPC | No |
 | TRON | Tronscan / TronGrid | No |
 
 **How it works:**
 1. The order is set to "On Hold" at checkout.
 2. Every 3 minutes, the plugin checks all on-hold crypto orders (up to 50, within the last 48 hours).
-3. For each order, it queries the appropriate blockchain API using the TX hash (if provided) or by scanning recent transactions to your wallet.
+3. For each order, it queries the appropriate blockchain API using the TX hash (if provided) or by scanning recent transactions to your wallet. A transaction only counts if it's newer than the order's price quote and hasn't paid another order.
 4. When enough confirmations are reached, the order is automatically moved to "Processing"/"Completed".
 5. All verification activity is logged to **WooCommerce > Status > Logs > crypto-payments**.
 

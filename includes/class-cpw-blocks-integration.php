@@ -71,7 +71,6 @@ class CPW_Blocks_Integration extends AbstractPaymentMethodType {
         wp_localize_script( 'cpw-blocks-checkout', 'cpw_block_data', [
             'ajax_url'       => admin_url( 'admin-ajax.php' ),
             'nonce_price'    => wp_create_nonce( 'cpw_get_crypto_price' ),
-            'nonce_confirm'  => wp_create_nonce( 'cpw_confirm_payment' ),
             'networks'       => $this->get_enabled_networks_for_js(),
             'gateway_id'     => $this->name,
             'payment_window' => $payment_window,
@@ -102,7 +101,6 @@ class CPW_Blocks_Integration extends AbstractPaymentMethodType {
             'networks'    => $this->get_enabled_networks_for_js(),
             'ajax_url'       => admin_url( 'admin-ajax.php' ),
             'nonce_price'    => wp_create_nonce( 'cpw_get_crypto_price' ),
-            'nonce_confirm'  => wp_create_nonce( 'cpw_confirm_payment' ),
             'payment_window' => isset( $this->settings['payment_window'] ) ? absint( $this->settings['payment_window'] ) : 15,
         ];
     }

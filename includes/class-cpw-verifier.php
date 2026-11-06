@@ -30,6 +30,11 @@ class CPW_Verifier {
     const MAX_ORDER_AGE = 172800;
 
     /**
+     * How long before the quote a transaction may be dated, to allow for clock differences (seconds).
+     */
+    const TX_TIME_BUFFER = 300;
+
+    /**
      * Chain verifier instances.
      */
     private $verifiers = [];
@@ -205,6 +210,18 @@ class CPW_Verifier {
             return;
         }
 
+        // Only auto-complete an order whose total is the one we quoted the crypto amount for.
+        $quoted_at = (int) $order->get_meta( '_cpw_quoted_at' );
+        if ( ! $quoted_at || ! CPW_Gateway::quote_matches_total( $order->get_meta( '_cpw_quoted_fiat' ), $order->get_meta( '_cpw_quoted_currency' ), $order ) ) {
+            if ( 'yes' !== $order->get_meta( '_cpw_quote_note_added' ) ) {
+                $order->add_order_note( __( 'Automatic verification skipped: this order has no price quote matching its total. Please check the payment manually.', 'crypto-payments-woo' ) );
+                $order->update_meta_data( '_cpw_quote_note_added', 'yes' );
+                $order->save();
+            }
+            cpw_log( sprintf( 'Order #%d: no quote matching the order total, skipping.', $order->get_id() ) );
+            return;
+        }
+
         // Get the appropriate verifier.
         $verifier_key = $this->get_verifier_key( $network_id );
         if ( ! $verifier_key || ! isset( $this->verifiers[ $verifier_key ] ) ) {
@@ -226,6 +243,7 @@ class CPW_Verifier {
             'crypto_amount'  => $crypto_amount,
             'tx_hash'        => $tx_hash,
             'payment_time'   => $payment_time,
+            'min_tx_time'    => $quoted_at - self::TX_TIME_BUFFER,
         ];
 
         // Increment attempt counter.
@@ -234,7 +252,7 @@ class CPW_Verifier {
 
         try {
             $result = $verifier->verify( $context );
-        } catch ( \Exception $e ) {
+        } catch ( \Throwable $e ) {
             cpw_log( sprintf( 'Order #%d: verification exception - %s', $order->get_id(), $e->getMessage() ) );
             return;
         }
@@ -255,6 +273,12 @@ class CPW_Verifier {
         switch ( $status ) {
             case 'confirmed':
                 // Payment confirmed with enough confirmations.
+                $tx = $result['tx_hash'] ?? $context['tx_hash'];
+                if ( ! $tx || ! self::claim_tx( $tx, $order->get_id() ) ) {
+                    $this->handle_result( $order, [ 'status' => 'failed', 'message' => 'This transaction already paid another order.' ], $context );
+                    break;
+                }
+
                 $order->update_meta_data( '_cpw_verified', 'yes' );
                 $order->update_meta_data( '_cpw_verified_at', current_time( 'mysql' ) );
                 $order->update_meta_data( '_cpw_confirmations', $result['confirmations'] ?? 0 );
@@ -264,7 +288,6 @@ class CPW_Verifier {
                 }
 
                 $explorer_url = '';
-                $tx = $result['tx_hash'] ?? $context['tx_hash'];
                 if ( $tx && ! empty( $context['network']['explorer_tx'] ) ) {
                     $explorer_url = str_replace( '{tx}', $tx, $context['network']['explorer_tx'] );
                 }
@@ -315,6 +338,79 @@ class CPW_Verifier {
                 cpw_log( sprintf( 'Order #%d: payment FAILED - %s', $order->get_id(), $result['message'] ?? '' ) );
                 break;
         }
+    }
+
+    /**
+     * Whether a transaction can pay this order: not older than its quote, and not used by another order.
+     *
+     * @param array  $context Verification context.
+     * @param string $tx_hash Transaction hash.
+     * @param int    $tx_time Transaction time (Unix), or 0 while it isn't in a block yet.
+     * @return bool
+     */
+    public static function tx_is_usable( $context, $tx_hash, $tx_time = 0 ) {
+        if ( '' === (string) $tx_hash ) {
+            return false;
+        }
+        if ( $tx_time && $tx_time < $context['min_tx_time'] ) {
+            return false;
+        }
+        return ! self::tx_claimed_by_other( $tx_hash, $context['order_id'] );
+    }
+
+    /**
+     * Whether another order already took a transaction.
+     *
+     * @param string $tx_hash  Transaction hash.
+     * @param int    $order_id This order.
+     * @return bool
+     */
+    private static function tx_claimed_by_other( $tx_hash, $order_id ) {
+        $claimed_by = (int) get_option( self::tx_option_name( $tx_hash ), 0 );
+        if ( $claimed_by && $claimed_by !== (int) $order_id ) {
+            return true;
+        }
+
+        // Orders paid before claims existed.
+        $paid = wc_get_orders( [
+            'limit'      => 2,
+            'return'     => 'ids',
+            'status'     => [ 'processing', 'completed' ],
+            'meta_query' => [ // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query -- Rare, on the verification cron only.
+                [
+                    'key'   => '_cpw_tx_hash',
+                    'value' => $tx_hash,
+                ],
+            ],
+        ] );
+
+        return ! empty( array_diff( array_map( 'intval', $paid ), [ (int) $order_id ] ) );
+    }
+
+    /**
+     * Records that an order took a transaction. add_option() is atomic, so only one order can win.
+     *
+     * @param string $tx_hash  Transaction hash.
+     * @param int    $order_id The order.
+     * @return bool Whether this order holds the transaction.
+     */
+    private static function claim_tx( $tx_hash, $order_id ) {
+        if ( self::tx_claimed_by_other( $tx_hash, $order_id ) ) {
+            return false;
+        }
+        $option = self::tx_option_name( $tx_hash );
+        return add_option( $option, (int) $order_id, '', 'no' ) || (int) get_option( $option ) === (int) $order_id;
+    }
+
+    /**
+     * Option name for a transaction's claim. Hex hashes are case-insensitive; Solana's aren't.
+     *
+     * @param string $tx_hash Transaction hash.
+     * @return string
+     */
+    private static function tx_option_name( $tx_hash ) {
+        $hash = preg_replace( '/^0x/i', '', (string) $tx_hash );
+        return 'cpw_tx_' . md5( ctype_xdigit( $hash ) ? strtolower( $hash ) : $hash );
     }
 
     /**

@@ -2,7 +2,7 @@
 /**
  * CPW_Verify_EVM - Verifies payments on all EVM-compatible chains.
  *
- * Uses Etherscan-family APIs (all share the same API format).
+ * Uses Etherscan's V2 API, one endpoint and key for all its chains, and Routescan for Avalanche.
  * Covers: ETH, BNB, Polygon, Arbitrum, Optimism, Base, Avalanche,
  * and all ERC-20/BEP-20 tokens on those chains.
  *
@@ -18,39 +18,41 @@ class CPW_Verify_EVM {
     /**
      * Explorer API base URLs and API key setting names per chain.
      */
+    const ETHERSCAN_V2 = 'https://api.etherscan.io/v2/api';
+
     const CHAIN_CONFIG = [
         1     => [
-            'api'     => 'https://api.etherscan.io/api',
+            'api'     => self::ETHERSCAN_V2,
             'key'     => 'etherscan_api_key',
             'name'    => 'Ethereum',
             'confirmations' => 12,
         ],
         56    => [
-            'api'     => 'https://api.bscscan.com/api',
+            'api'     => self::ETHERSCAN_V2,
             'key'     => 'bscscan_api_key',
             'name'    => 'BNB Chain',
             'confirmations' => 15,
         ],
         137   => [
-            'api'     => 'https://api.polygonscan.com/api',
+            'api'     => self::ETHERSCAN_V2,
             'key'     => 'polygonscan_api_key',
             'name'    => 'Polygon',
             'confirmations' => 128,
         ],
         42161 => [
-            'api'     => 'https://api.arbiscan.io/api',
+            'api'     => self::ETHERSCAN_V2,
             'key'     => 'arbiscan_api_key',
             'name'    => 'Arbitrum',
             'confirmations' => 12,
         ],
         10    => [
-            'api'     => 'https://api-optimistic.etherscan.io/api',
+            'api'     => self::ETHERSCAN_V2,
             'key'     => 'optimism_api_key',
             'name'    => 'Optimism',
             'confirmations' => 12,
         ],
         8453  => [
-            'api'     => 'https://api.basescan.org/api',
+            'api'     => self::ETHERSCAN_V2,
             'key'     => 'basescan_api_key',
             'name'    => 'Base',
             'confirmations' => 12,
@@ -85,8 +87,16 @@ class CPW_Verify_EVM {
         $config = self::CHAIN_CONFIG[ $chain_id ];
         $api_key = $this->settings[ $config['key'] ] ?? '';
 
-        if ( empty( $api_key ) ) {
-            return [ 'status' => 'pending', 'message' => 'No API key for ' . $config['name'] . '.' ];
+        if ( self::ETHERSCAN_V2 === $config['api'] ) {
+            $config['api'] .= '?chainid=' . (int) $chain_id;
+
+            // One Etherscan key covers all its chains; a chain's own field overrides it.
+            if ( empty( $api_key ) ) {
+                $api_key = $this->settings['etherscan_api_key'] ?? '';
+            }
+            if ( empty( $api_key ) ) {
+                return [ 'status' => 'pending', 'message' => 'No Etherscan API key for ' . $config['name'] . '.' ];
+            }
         }
 
         // Path 1: TX hash provided — verify that specific transaction.
@@ -113,7 +123,7 @@ class CPW_Verify_EVM {
             'apikey' => $api_key,
         ]);
 
-        if ( ! $receipt || ! isset( $receipt['result'] ) || $receipt['result'] === null ) {
+        if ( ! $receipt || ! isset( $receipt['result'] ) || ! is_array( $receipt['result'] ) ) {
             return [ 'status' => 'pending', 'message' => 'Transaction not yet mined.' ];
         }
 
@@ -132,9 +142,11 @@ class CPW_Verify_EVM {
             'apikey' => $api_key,
         ]);
 
-        $current_block = isset( $block_num_response['result'] )
-            ? hexdec( $block_num_response['result'] )
-            : 0;
+        if ( ! is_string( $block_num_response['result'] ?? null ) || 0 !== strpos( $block_num_response['result'], '0x' ) ) {
+            return [ 'status' => 'pending', 'message' => 'Could not fetch the current block.' ];
+        }
+
+        $current_block = hexdec( $block_num_response['result'] );
         $tx_block = hexdec( $receipt_data['blockNumber'] ?? '0x0' );
         $confirmations = $current_block > 0 && $tx_block > 0
             ? $current_block - $tx_block
@@ -165,7 +177,7 @@ class CPW_Verify_EVM {
                 'apikey' => $api_key,
             ]);
 
-            if ( ! $tx_detail || ! isset( $tx_detail['result'] ) ) {
+            if ( ! $tx_detail || ! isset( $tx_detail['result'] ) || ! is_array( $tx_detail['result'] ) ) {
                 return [ 'status' => 'pending', 'message' => 'Could not fetch transaction details.' ];
             }
 
@@ -182,6 +194,23 @@ class CPW_Verify_EVM {
                     'message' => 'Transaction recipient or amount does not match.',
                 ];
             }
+        }
+
+        // The transaction can't be older than the quote, or already used by another order.
+        $block = $this->api_call( $config['api'], [
+            'module'  => 'proxy',
+            'action'  => 'eth_getBlockByNumber',
+            'tag'     => '0x' . dechex( $tx_block ),
+            'boolean' => 'false',
+            'apikey'  => $api_key,
+        ]);
+
+        if ( ! is_array( $block['result'] ?? null ) || empty( $block['result']['timestamp'] ) ) {
+            return [ 'status' => 'pending', 'message' => 'Could not fetch the transaction block.' ];
+        }
+
+        if ( ! CPW_Verifier::tx_is_usable( $context, $tx_hash, hexdec( $block['result']['timestamp'] ) ) ) {
+            return [ 'status' => 'failed', 'message' => 'Transaction predates this order or already paid another order.' ];
         }
 
         // Check confirmations.
@@ -223,7 +252,7 @@ class CPW_Verify_EVM {
                 'apikey'          => $api_key,
             ]);
 
-            if ( ! $response || $response['status'] !== '1' || empty( $response['result'] ) ) {
+            if ( ! $response || ( $response['status'] ?? '' ) !== '1' || empty( $response['result'] ) ) {
                 return [ 'status' => 'pending', 'message' => 'No recent token transfers found.' ];
             }
 
@@ -244,7 +273,7 @@ class CPW_Verify_EVM {
                 'apikey'  => $api_key,
             ]);
 
-            if ( ! $response || $response['status'] !== '1' || empty( $response['result'] ) ) {
+            if ( ! $response || ( $response['status'] ?? '' ) !== '1' || empty( $response['result'] ) ) {
                 return [ 'status' => 'pending', 'message' => 'No recent transactions found.' ];
             }
 
@@ -319,7 +348,6 @@ class CPW_Verify_EVM {
         $expected_to = strtolower( $context['wallet_address'] );
         $expected_amount = (float) $context['crypto_amount'];
         $decimals = $context['network']['decimals'] ?? 18;
-        $payment_ts = strtotime( $context['payment_time'] ?? '' ) ?: ( time() - 3600 );
 
         foreach ( $transactions as $tx ) {
             // Must be incoming and successful.
@@ -330,9 +358,8 @@ class CPW_Verify_EVM {
                 continue;
             }
 
-            // Check timestamp is after order was created (with 5 min buffer before).
-            $tx_time = (int) ( $tx['timeStamp'] ?? 0 );
-            if ( $tx_time < ( $payment_ts - 300 ) ) {
+            // Must not be older than the quote, or used by another order.
+            if ( ! CPW_Verifier::tx_is_usable( $context, $tx['hash'] ?? '', (int) ( $tx['timeStamp'] ?? 0 ) ) ) {
                 continue;
             }
 
@@ -375,7 +402,6 @@ class CPW_Verify_EVM {
         $expected_amount = (float) $context['crypto_amount'];
         $decimals = $context['network']['decimals'] ?? 18;
         $token_contract = strtolower( $context['network']['token_contract'] ?? '' );
-        $payment_ts = strtotime( $context['payment_time'] ?? '' ) ?: ( time() - 3600 );
 
         foreach ( $transactions as $tx ) {
             // Must be to our wallet.
@@ -388,9 +414,8 @@ class CPW_Verify_EVM {
                 continue;
             }
 
-            // Check timestamp.
-            $tx_time = (int) ( $tx['timeStamp'] ?? 0 );
-            if ( $tx_time < ( $payment_ts - 300 ) ) {
+            // Must not be older than the quote, or used by another order.
+            if ( ! CPW_Verifier::tx_is_usable( $context, $tx['hash'] ?? '', (int) ( $tx['timeStamp'] ?? 0 ) ) ) {
                 continue;
             }
 
@@ -480,7 +505,7 @@ class CPW_Verify_EVM {
      * Make an API call to an Etherscan-family API.
      */
     private function api_call( $base_url, $params ) {
-        $url = $base_url . '?' . http_build_query( $params );
+        $url = $base_url . ( false === strpos( $base_url, '?' ) ? '?' : '&' ) . http_build_query( $params );
 
         $response = wp_remote_get( $url, [
             'timeout' => 15,
@@ -497,6 +522,11 @@ class CPW_Verify_EVM {
         if ( ! is_array( $body ) ) {
             cpw_log( 'EVM API: invalid response body.' );
             return null;
+        }
+
+        // Tell the store owner about key, plan and rate limit problems.
+        if ( '0' === ( $body['status'] ?? '' ) && 'NOTOK' === ( $body['message'] ?? '' ) && is_string( $body['result'] ?? null ) ) {
+            cpw_log( 'EVM API: ' . $body['result'] );
         }
 
         return $body;
