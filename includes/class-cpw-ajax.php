@@ -1,6 +1,6 @@
 <?php
 /**
- * CPW_Ajax - Handles AJAX endpoints for crypto price quotes and payment confirmation.
+ * CPW_Ajax - Handles the AJAX endpoint for crypto price quotes.
  *
  * @package CryptoPaymentsWoo
  */
@@ -14,8 +14,6 @@ class CPW_Ajax {
     public function __construct() {
         add_action( 'wp_ajax_cpw_get_crypto_price', [ $this, 'get_crypto_price' ] );
         add_action( 'wp_ajax_nopriv_cpw_get_crypto_price', [ $this, 'get_crypto_price' ] );
-        add_action( 'wp_ajax_cpw_confirm_payment', [ $this, 'confirm_payment' ] );
-        add_action( 'wp_ajax_nopriv_cpw_confirm_payment', [ $this, 'confirm_payment' ] );
     }
 
     /**
@@ -23,11 +21,6 @@ class CPW_Ajax {
      */
     public function get_crypto_price() {
         check_ajax_referer( 'cpw_get_crypto_price', 'nonce' );
-
-        // Require an active WooCommerce cart session to prevent wallet enumeration.
-        if ( ! WC()->cart || WC()->cart->is_empty() ) {
-            wp_send_json_error( [ 'message' => __( 'No active cart session.', 'crypto-payments-woo' ) ] );
-        }
 
         // Simple rate limiting: max 30 requests per minute per IP.
         $ip_hash = md5( sanitize_text_field( wp_unslash( $_SERVER['REMOTE_ADDR'] ?? 'unknown' ) ) );
@@ -39,47 +32,52 @@ class CPW_Ajax {
         set_transient( $rate_key, $rate_count + 1, 60 );
 
         $network_id = sanitize_text_field( wp_unslash( $_POST['network_id'] ?? '' ) );
-        $fiat_amount = floatval( $_POST['fiat_amount'] ?? 0 );
-        $currency = strtoupper( sanitize_text_field( wp_unslash( $_POST['currency'] ?? 'USD' ) ) );
-
-        // Validate currency against WooCommerce supported currencies.
-        $supported_currencies = array_keys( get_woocommerce_currencies() );
-        if ( ! in_array( $currency, $supported_currencies, true ) ) {
-            wp_send_json_error( [ 'message' => __( 'Unsupported currency.', 'crypto-payments-woo' ) ] );
-        }
-
-        if ( empty( $network_id ) || $fiat_amount <= 0 || $fiat_amount > 1000000 ) {
-            wp_send_json_error( [ 'message' => __( 'Invalid parameters.', 'crypto-payments-woo' ) ] );
-        }
-
-        $networks = CPW_Networks::get_all();
+        $networks   = CPW_Networks::get_all();
         if ( ! isset( $networks[ $network_id ] ) ) {
             wp_send_json_error( [ 'message' => __( 'Unknown network.', 'crypto-payments-woo' ) ] );
         }
 
-        $network = $networks[ $network_id ];
-        $gateway_settings = get_option( 'woocommerce_crypto_payments_settings', [] );
-        $converter = new CPW_Price_Converter();
-        $add_dust = ! empty( $gateway_settings['unique_amounts'] ) && $gateway_settings['unique_amounts'] === 'yes';
-        $crypto_amount = $converter->convert( $fiat_amount, $currency, $network['coingecko_id'], $add_dust );
+        $payable = $this->get_payable_amount();
+        if ( is_wp_error( $payable ) ) {
+            wp_send_json_error( [ 'message' => $payable->get_error_message() ] );
+        }
 
-        if ( $crypto_amount === false ) {
+        $network          = $networks[ $network_id ];
+        $gateway_settings = get_option( 'woocommerce_crypto_payments_settings', [] );
+        $wallet_address   = $gateway_settings[ 'wallet_' . $network_id ] ?? '';
+        if ( '' === $wallet_address ) {
+            wp_send_json_error( [ 'message' => __( 'This cryptocurrency is not currently available for payment.', 'crypto-payments-woo' ) ] );
+        }
+
+        $converter     = new CPW_Price_Converter();
+        $add_dust      = ! empty( $gateway_settings['unique_amounts'] ) && 'yes' === $gateway_settings['unique_amounts'];
+        $crypto_amount = $converter->convert( $payable['amount'], $payable['currency'], $network['coingecko_id'], $add_dust );
+
+        if ( false === $crypto_amount ) {
             wp_send_json_error( [ 'message' => __( 'Could not fetch price. Please try again.', 'crypto-payments-woo' ) ] );
         }
 
-        // Store the quoted amount and timestamp server-side for verification at payment time.
-        $payment_window = isset( $gateway_settings['payment_window'] ) ? absint( $gateway_settings['payment_window'] ) : 15;
-        WC()->session->set( 'cpw_quoted_amount', $crypto_amount );
-        WC()->session->set( 'cpw_quoted_network', $network_id );
-        WC()->session->set( 'cpw_quoted_at', time() );
-        WC()->session->set( 'cpw_payment_window', $payment_window );
-
-        // Get the wallet address from settings.
-        $address_key = 'wallet_' . $network_id;
-        $wallet_address = isset( $gateway_settings[ $address_key ] ) ? $gateway_settings[ $address_key ] : '';
+        // process_payment() checks the order against this quote.
+        if ( ! WC()->session->has_session() ) {
+            WC()->session->set_customer_session_cookie( true );
+        }
+        WC()->session->set(
+            CPW_Gateway::QUOTE_SESSION_KEY,
+            [
+                'crypto_amount' => $crypto_amount,
+                'network_id'    => $network_id,
+                'fiat_amount'   => $payable['amount'],
+                'currency'      => $payable['currency'],
+                'quoted_at'     => time(),
+                'window'        => isset( $gateway_settings['payment_window'] ) ? absint( $gateway_settings['payment_window'] ) : 15,
+                'order_id'      => $payable['order_id'],
+            ]
+        );
 
         wp_send_json_success( [
             'crypto_amount'  => $crypto_amount,
+            'fiat_amount'    => $payable['amount'],
+            'currency'       => $payable['currency'],
             'symbol'         => $network['symbol'],
             'wallet_address' => $wallet_address,
             'network_name'   => $network['name'],
@@ -92,80 +90,47 @@ class CPW_Ajax {
     }
 
     /**
-     * AJAX handler: mark order as "awaiting confirmation" with tx details.
+     * What the customer owes: the order on the order-pay page, otherwise the cart.
+     *
+     * @return array|WP_Error Array with 'amount', 'currency' and 'order_id', or an error.
      */
-    public function confirm_payment() {
-        check_ajax_referer( 'cpw_confirm_payment', 'nonce' );
+    private function get_payable_amount() {
+        // phpcs:disable WordPress.Security.NonceVerification.Missing -- get_crypto_price() verifies the nonce first.
+        $order_id  = absint( $_POST['order_id'] ?? 0 );
+        $order_key = sanitize_text_field( wp_unslash( $_POST['order_key'] ?? '' ) );
+        // phpcs:enable WordPress.Security.NonceVerification.Missing
 
-        $order_id   = intval( $_POST['order_id'] ?? 0 );
-        $order_key  = sanitize_text_field( wp_unslash( $_POST['order_key'] ?? '' ) );
-        $network_id = sanitize_text_field( wp_unslash( $_POST['network_id'] ?? '' ) );
-        $tx_hash    = sanitize_text_field( wp_unslash( $_POST['tx_hash'] ?? '' ) );
-        $amount     = sanitize_text_field( wp_unslash( $_POST['crypto_amount'] ?? '' ) );
-
-        if ( ! $order_id ) {
-            wp_send_json_error( [ 'message' => __( 'Invalid order.', 'crypto-payments-woo' ) ] );
+        if ( $order_id ) {
+            $order = wc_get_order( $order_id );
+            if ( ! $order || ! $order_key || ! hash_equals( $order->get_order_key(), $order_key ) ) {
+                return new WP_Error( 'cpw_unauthorized', __( 'Unauthorized.', 'crypto-payments-woo' ) );
+            }
+            if ( ! $order->needs_payment() ) {
+                return new WP_Error( 'cpw_paid', __( 'This order does not need payment.', 'crypto-payments-woo' ) );
+            }
+            return [
+                'amount'   => (float) $order->get_total(),
+                'currency' => $order->get_currency(),
+                'order_id' => $order->get_id(),
+            ];
         }
 
-        $order = wc_get_order( $order_id );
-        if ( ! $order ) {
-            wp_send_json_error( [ 'message' => __( 'Order not found.', 'crypto-payments-woo' ) ] );
+        // Require an active cart to prevent wallet enumeration.
+        if ( ! WC()->cart || WC()->cart->is_empty() ) {
+            return new WP_Error( 'cpw_no_cart', __( 'No active cart session.', 'crypto-payments-woo' ) );
         }
 
-        // Verify order ownership via order key.
-        if ( ! $order_key || $order->get_order_key() !== $order_key ) {
-            wp_send_json_error( [ 'message' => __( 'Unauthorized.', 'crypto-payments-woo' ) ] );
+        WC()->cart->calculate_totals();
+        $amount = (float) WC()->cart->get_total( 'edit' );
+        if ( $amount <= 0 ) {
+            return new WP_Error( 'cpw_no_total', __( 'This order does not need payment.', 'crypto-payments-woo' ) );
         }
 
-        // Verify the order uses our payment method.
-        if ( $order->get_payment_method() !== 'crypto_payments' ) {
-            wp_send_json_error( [ 'message' => __( 'Invalid payment method.', 'crypto-payments-woo' ) ] );
-        }
-
-        // Only allow status changes on pending orders.
-        if ( ! $order->has_status( 'pending' ) ) {
-            wp_send_json_error( [ 'message' => __( 'Order is not in a valid state for payment confirmation.', 'crypto-payments-woo' ) ] );
-        }
-
-        // Validate network.
-        $networks = CPW_Networks::get_all();
-        if ( ! isset( $networks[ $network_id ] ) ) {
-            wp_send_json_error( [ 'message' => __( 'Unknown network.', 'crypto-payments-woo' ) ] );
-        }
-
-        // Validate tx_hash format if provided.
-        if ( $tx_hash && ! self::validate_tx_hash( $tx_hash, $network_id ) ) {
-            wp_send_json_error( [ 'message' => __( 'Invalid transaction hash format.', 'crypto-payments-woo' ) ] );
-        }
-
-        // Validate amount is numeric.
-        if ( $amount && ! is_numeric( $amount ) ) {
-            wp_send_json_error( [ 'message' => __( 'Invalid amount.', 'crypto-payments-woo' ) ] );
-        }
-
-        $network_name = $networks[ $network_id ]['name'];
-
-        $order->update_meta_data( '_cpw_network', $network_id );
-        $order->update_meta_data( '_cpw_crypto_amount', $amount );
-        $order->update_meta_data( '_cpw_tx_hash', $tx_hash );
-        $order->update_meta_data( '_cpw_payment_time', current_time( 'mysql' ) );
-
-        $note = sprintf(
-            /* translators: 1: crypto amount, 2: crypto symbol, 3: network name */
-            __( 'Crypto payment submitted: %1$s %2$s on %3$s.', 'crypto-payments-woo' ),
-            $amount,
-            $networks[ $network_id ]['symbol'],
-            $network_name
-        );
-        if ( $tx_hash ) {
-            /* translators: %s: transaction hash */
-            $note .= sprintf( __( ' TX: %s', 'crypto-payments-woo' ), esc_html( $tx_hash ) );
-        }
-        $order->add_order_note( $note );
-        $order->update_status( 'on-hold', __( 'Awaiting crypto payment confirmation.', 'crypto-payments-woo' ) );
-        $order->save();
-
-        wp_send_json_success( [ 'message' => __( 'Payment recorded. Awaiting confirmation.', 'crypto-payments-woo' ) ] );
+        return [
+            'amount'   => $amount,
+            'currency' => get_woocommerce_currency(),
+            'order_id' => 0,
+        ];
     }
 
     /**

@@ -16,6 +16,7 @@ class CPW_Verify_XRP {
 
     const RPC_URL       = 'https://xrplcluster.com';
     const CONFIRMATIONS = 1; // XRP validates quickly; 1 validated ledger is sufficient.
+    const RIPPLE_EPOCH  = 946684800; // XRP Ledger times count seconds from 2000-01-01.
 
     private $settings;
 
@@ -49,7 +50,7 @@ class CPW_Verify_XRP {
             'binary'      => false,
         ]);
 
-        if ( ! $result || ! isset( $result['result'] ) ) {
+        if ( ! $result || ! isset( $result['result'] ) || ! empty( $result['result']['error'] ) ) {
             return [ 'status' => 'pending', 'message' => 'Transaction not found.' ];
         }
 
@@ -75,17 +76,12 @@ class CPW_Verify_XRP {
         // Check delivered amount (accounts for partial payments).
         $delivered = $meta['delivered_amount'] ?? $tx['Amount'] ?? '0';
 
-        // Amount can be a string (drops for XRP) or an object (for issued currencies).
-        if ( is_string( $delivered ) ) {
-            // XRP native: amount is in drops (1 XRP = 1,000,000 drops).
-            $amount_xrp = (float) $delivered / 1e6;
-        } else {
-            // Issued currency (not typical for our use case but handle it).
-            $amount_xrp = (float) ( $delivered['value'] ?? 0 );
+        if ( ! $this->amounts_match( $this->xrp_amount( $delivered ), $expected_amount ) ) {
+            return [ 'status' => 'failed', 'message' => 'Payment amount does not match.' ];
         }
 
-        if ( ! $this->amounts_match( $amount_xrp, $expected_amount ) ) {
-            return [ 'status' => 'failed', 'message' => 'Payment amount does not match.' ];
+        if ( ! CPW_Verifier::tx_is_usable( $context, $tx_hash, $this->tx_time( $tx ) ) ) {
+            return [ 'status' => 'failed', 'message' => 'Transaction predates this order or already paid another order.' ];
         }
 
         // Check if validated.
@@ -146,16 +142,17 @@ class CPW_Verify_XRP {
 
             // Check amount.
             $delivered = $meta['delivered_amount'] ?? $tx['Amount'] ?? '0';
-            $amount_xrp = is_string( $delivered )
-                ? (float) $delivered / 1e6
-                : (float) ( $delivered['value'] ?? 0 );
+            if ( ! $this->amounts_match( $this->xrp_amount( $delivered ), $expected_amount ) ) {
+                continue;
+            }
 
-            if ( ! $this->amounts_match( $amount_xrp, $expected_amount ) ) {
+            // Must not be older than the quote, or used by another order.
+            $tx_hash = $tx['hash'] ?? $entry['hash'] ?? '';
+            if ( ! CPW_Verifier::tx_is_usable( $context, $tx_hash, $this->tx_time( $tx ) ) ) {
                 continue;
             }
 
             // Found a match.
-            $tx_hash = $tx['hash'] ?? '';
             $validated = $entry['validated'] ?? false;
 
             if ( $validated ) {
@@ -176,6 +173,27 @@ class CPW_Verify_XRP {
         }
 
         return [ 'status' => 'pending', 'message' => 'No matching XRP payment found.' ];
+    }
+
+    /**
+     * XRP delivered by a payment. Only a string is XRP (in drops); an object is an issued token,
+     * which anyone can create and is worth nothing here.
+     *
+     * @param mixed $delivered The delivered_amount value.
+     * @return float
+     */
+    private function xrp_amount( $delivered ) {
+        return is_string( $delivered ) && is_numeric( $delivered ) ? (float) $delivered / 1e6 : 0.0;
+    }
+
+    /**
+     * A transaction's time as a Unix time, or 0 when it has none.
+     *
+     * @param array $tx Transaction.
+     * @return int
+     */
+    private function tx_time( $tx ) {
+        return isset( $tx['date'] ) ? (int) $tx['date'] + self::RIPPLE_EPOCH : 0;
     }
 
     /**

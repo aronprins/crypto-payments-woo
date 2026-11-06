@@ -71,7 +71,7 @@ class CPW_Verify_Bitcoin {
 
         // Path 1: TX hash provided.
         if ( $tx_hash ) {
-            return $this->mempool_verify_tx( $tx_hash, $wallet, $expected_amount, $config );
+            return $this->mempool_verify_tx( $tx_hash, $wallet, $expected_amount, $context, $config );
         }
 
         // Path 2: Scan recent transactions.
@@ -81,7 +81,7 @@ class CPW_Verify_Bitcoin {
     /**
      * Verify a specific BTC transaction via mempool.space.
      */
-    private function mempool_verify_tx( $tx_hash, $expected_to, $expected_amount, $config ) {
+    private function mempool_verify_tx( $tx_hash, $expected_to, $expected_amount, $context, $config ) {
         $url = $config['api'] . '/tx/' . $tx_hash;
         $response = $this->http_get( $url );
 
@@ -104,6 +104,10 @@ class CPW_Verify_Bitcoin {
 
         if ( ! $found ) {
             return [ 'status' => 'failed', 'message' => 'Transaction does not match expected payment.' ];
+        }
+
+        if ( ! CPW_Verifier::tx_is_usable( $context, $tx_hash, (int) ( $response['status']['block_time'] ?? 0 ) ) ) {
+            return [ 'status' => 'failed', 'message' => 'Transaction predates this order or already paid another order.' ];
         }
 
         // Check confirmation status.
@@ -154,8 +158,6 @@ class CPW_Verify_Bitcoin {
             return [ 'status' => 'pending', 'message' => 'Could not fetch address transactions.' ];
         }
 
-        $payment_ts = strtotime( $context['payment_time'] ?? '' ) ?: ( time() - 3600 );
-
         // Only check the most recent 25 transactions.
         $transactions = array_slice( $transactions, 0, 25 );
 
@@ -172,8 +174,13 @@ class CPW_Verify_Bitcoin {
                     continue;
                 }
 
-                // Match found. Check confirmations.
+                // Must not be older than the quote, or used by another order.
                 $tx_hash = $tx['txid'] ?? '';
+                if ( ! CPW_Verifier::tx_is_usable( $context, $tx_hash, (int) ( $tx['status']['block_time'] ?? 0 ) ) ) {
+                    continue;
+                }
+
+                // Match found. Check confirmations.
                 $confirmed = $tx['status']['confirmed'] ?? false;
 
                 if ( ! $confirmed ) {
@@ -221,7 +228,7 @@ class CPW_Verify_Bitcoin {
 
         // Path 1: TX hash provided.
         if ( $tx_hash ) {
-            return $this->blockchair_verify_tx( $tx_hash, $wallet, $expected_amount, $config );
+            return $this->blockchair_verify_tx( $tx_hash, $wallet, $expected_amount, $context, $config );
         }
 
         // Path 2: Scan address.
@@ -231,7 +238,7 @@ class CPW_Verify_Bitcoin {
     /**
      * Verify a specific transaction via Blockchair.
      */
-    private function blockchair_verify_tx( $tx_hash, $expected_to, $expected_amount, $config ) {
+    private function blockchair_verify_tx( $tx_hash, $expected_to, $expected_amount, $context, $config ) {
         $url = $config['api'] . '/dashboards/transaction/' . $tx_hash;
         $response = $this->http_get( $url );
 
@@ -255,6 +262,10 @@ class CPW_Verify_Bitcoin {
 
         if ( ! $found ) {
             return [ 'status' => 'failed', 'message' => 'Transaction does not match expected payment.' ];
+        }
+
+        if ( ! CPW_Verifier::tx_is_usable( $context, $tx_hash, $this->blockchair_time( $tx_data['transaction']['time'] ?? '' ) ) ) {
+            return [ 'status' => 'failed', 'message' => 'Transaction predates this order or already paid another order.' ];
         }
 
         $block_id = $tx_data['transaction']['block_id'] ?? -1;
@@ -323,6 +334,10 @@ class CPW_Verify_Bitcoin {
 
             if ( $this->amounts_match( $value, $expected_amount ) ) {
                 $tx_hash = $tx_info['hash'] ?? '';
+                if ( ! CPW_Verifier::tx_is_usable( $context, $tx_hash, $this->blockchair_time( $tx_info['time'] ?? '' ) ) ) {
+                    continue;
+                }
+
                 $block_id = $tx_info['block_id'] ?? -1;
 
                 if ( $block_id < 0 ) {
@@ -358,6 +373,16 @@ class CPW_Verify_Bitcoin {
         }
 
         return [ 'status' => 'pending', 'message' => 'No matching transaction found.' ];
+    }
+
+    /**
+     * Converts a Blockchair time (UTC, "2026-11-06 14:18:21") to a Unix time.
+     *
+     * @param string $time Blockchair time.
+     * @return int Unix time, or 0 when there is none.
+     */
+    private function blockchair_time( $time ) {
+        return $time ? (int) strtotime( $time . ' UTC' ) : 0;
     }
 
     /**

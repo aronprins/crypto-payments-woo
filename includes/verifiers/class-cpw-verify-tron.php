@@ -3,7 +3,7 @@
  * CPW_Verify_TRON - Verifies payments on the TRON network.
  *
  * Covers TRX native and TRC-20 tokens (USDT).
- * Uses Tronscan API and TronGrid (free, no key required for basic usage).
+ * Uses the Tronscan API and TronGrid (free, no key required for basic usage).
  *
  * @package CryptoPaymentsWoo
  */
@@ -17,6 +17,7 @@ class CPW_Verify_TRON {
     const TRONSCAN_API  = 'https://apilist.tronscanapi.com/api';
     const TRONGRID_API  = 'https://api.trongrid.io';
     const CONFIRMATIONS = 19;
+    const CONTRACT_TYPE_TRANSFER = 1; // A plain TRX transfer, not a TRC-10 token.
 
     private $settings;
 
@@ -66,6 +67,9 @@ class CPW_Verify_TRON {
             // Check TRC-20 token transfers in the transaction.
             $token_transfer_info = $response['trc20TransferInfo'] ?? $response['tokenTransferInfo'] ?? [];
             $transfers = is_array( $token_transfer_info ) ? $token_transfer_info : [];
+            if ( isset( $transfers['to_address'] ) ) {
+                $transfers = [ $transfers ]; // tokenTransferInfo is a single transfer.
+            }
 
             // Also check trigger_info for contract calls.
             $trigger_info = $response['trigger_info'] ?? [];
@@ -80,6 +84,10 @@ class CPW_Verify_TRON {
                 $amount_raw = $transfer['amount_str'] ?? $transfer['amount'] ?? '0';
                 $amount = (float) $amount_raw / pow( 10, $decimals );
 
+                if ( ( $transfer['contract_address'] ?? '' ) !== $contract_address ) {
+                    continue;
+                }
+
                 if ( $to === $wallet && $this->amounts_match( $amount, $expected_amount ) ) {
                     $found = true;
                     break;
@@ -89,7 +97,7 @@ class CPW_Verify_TRON {
             // Method 2: Check trigger_info (for direct contract calls).
             if ( ! $found && ! empty( $trigger_info ) ) {
                 $method = $trigger_info['methodName'] ?? '';
-                if ( $method === 'transfer' ) {
+                if ( $method === 'transfer' && ( $trigger_info['contract_address'] ?? '' ) === $contract_address ) {
                     $param_to = $trigger_info['parameter']['_to'] ?? '';
                     $param_value = $trigger_info['parameter']['_value'] ?? '0';
                     $amount = (float) $param_value / pow( 10, $decimals );
@@ -105,6 +113,10 @@ class CPW_Verify_TRON {
             }
         } else {
             // Native TRX transfer.
+            if ( (int) ( $response['contractType'] ?? 0 ) !== self::CONTRACT_TYPE_TRANSFER ) {
+                return [ 'status' => 'failed', 'message' => 'Transaction is not a TRX transfer.' ];
+            }
+
             $contract_data = $response['contractData'] ?? [];
             $to_address = $contract_data['to_address'] ?? $response['toAddress'] ?? '';
             $amount_sun = $contract_data['amount'] ?? $response['contractData']['amount'] ?? 0;
@@ -117,6 +129,10 @@ class CPW_Verify_TRON {
             if ( ! $this->amounts_match( $amount_trx, $expected_amount ) ) {
                 return [ 'status' => 'failed', 'message' => 'Transaction amount does not match.' ];
             }
+        }
+
+        if ( ! CPW_Verifier::tx_is_usable( $context, $tx_hash, (int) ( ( $response['timestamp'] ?? 0 ) / 1000 ) ) ) {
+            return [ 'status' => 'failed', 'message' => 'Transaction predates this order or already paid another order.' ];
         }
 
         // Check confirmations.
@@ -189,7 +205,7 @@ class CPW_Verify_TRON {
             $amount_trx = (float) ( $tx['amount'] ?? 0 ) / 1e6;
             $result = $tx['result'] ?? '';
 
-            if ( $to !== $wallet || $result !== 'SUCCESS' ) {
+            if ( $to !== $wallet || $result !== 'SUCCESS' || (int) ( $tx['contractType'] ?? 0 ) !== self::CONTRACT_TYPE_TRANSFER ) {
                 continue;
             }
 
@@ -197,8 +213,13 @@ class CPW_Verify_TRON {
                 continue;
             }
 
-            // Found a match.
+            // Must not be older than the quote, or used by another order.
             $tx_hash = $tx['hash'] ?? '';
+            if ( ! CPW_Verifier::tx_is_usable( $context, $tx_hash, (int) ( ( $tx['timestamp'] ?? 0 ) / 1000 ) ) ) {
+                continue;
+            }
+
+            // Found a match.
             $confirmed = $tx['confirmed'] ?? false;
 
             if ( $confirmed ) {
@@ -230,25 +251,24 @@ class CPW_Verify_TRON {
         $token_contract = $context['network']['token_contract'] ?? '';
         $decimals = $context['network']['decimals'] ?? 6;
 
-        $url = self::TRONSCAN_API . '/token_trc20/transfers?' . http_build_query( [
-            'toAddress'       => $wallet,
+        // Only confirmed transfers, so a match here has its confirmations.
+        $url = self::TRONGRID_API . '/v1/accounts/' . rawurlencode( $wallet ) . '/transactions/trc20?' . http_build_query( [
             'contract_address' => $token_contract,
-            'limit'           => 20,
-            'sort'            => '-timestamp',
+            'only_to'          => 'true',
+            'only_confirmed'   => 'true',
+            'limit'            => 20,
         ]);
 
         $response = $this->http_get( $url );
 
-        if ( ! $response || ! isset( $response['token_transfers'] ) ) {
+        if ( ! $response || ! isset( $response['data'] ) || ! is_array( $response['data'] ) ) {
             return [ 'status' => 'pending', 'message' => 'Could not fetch TRC-20 transfers.' ];
         }
 
-        foreach ( $response['token_transfers'] as $transfer ) {
-            $to = $transfer['to_address'] ?? '';
-            $amount_raw = $transfer['quant'] ?? '0';
-            $amount = (float) $amount_raw / pow( 10, $decimals );
+        foreach ( $response['data'] as $transfer ) {
+            $amount = (float) ( $transfer['value'] ?? '0' ) / pow( 10, $decimals );
 
-            if ( $to !== $wallet ) {
+            if ( ( $transfer['to'] ?? '' ) !== $wallet || ( $transfer['token_info']['address'] ?? '' ) !== $token_contract ) {
                 continue;
             }
 
@@ -256,23 +276,16 @@ class CPW_Verify_TRON {
                 continue;
             }
 
-            // Found a match.
+            // Must not be older than the quote, or used by another order.
             $tx_hash = $transfer['transaction_id'] ?? '';
-            $confirmed = $transfer['confirmed'] ?? $transfer['finalResult'] ?? '';
-
-            if ( $confirmed === 'SUCCESS' || $confirmed === true ) {
-                return [
-                    'status'        => 'confirmed',
-                    'tx_hash'       => $tx_hash,
-                    'confirmations' => self::CONFIRMATIONS,
-                    'required_confirmations' => self::CONFIRMATIONS,
-                ];
+            if ( ! CPW_Verifier::tx_is_usable( $context, $tx_hash, (int) ( ( $transfer['block_timestamp'] ?? 0 ) / 1000 ) ) ) {
+                continue;
             }
 
             return [
-                'status'        => 'found',
+                'status'        => 'confirmed',
                 'tx_hash'       => $tx_hash,
-                'confirmations' => 0,
+                'confirmations' => self::CONFIRMATIONS,
                 'required_confirmations' => self::CONFIRMATIONS,
             ];
         }
@@ -287,8 +300,7 @@ class CPW_Verify_TRON {
         $response = wp_remote_get( $url, [
             'timeout' => 15,
             'headers' => [
-                'Accept'    => 'application/json',
-                'TRON-PRO-API-KEY' => '', // Can be added later for higher limits.
+                'Accept' => 'application/json',
             ],
         ]);
 

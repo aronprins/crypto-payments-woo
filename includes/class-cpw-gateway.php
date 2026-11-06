@@ -11,6 +11,11 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 class CPW_Gateway extends WC_Payment_Gateway {
 
+    /**
+     * Session key holding the latest price quote.
+     */
+    const QUOTE_SESSION_KEY = 'cpw_quote';
+
     public function __construct() {
         $this->id                 = 'crypto_payments';
         $this->icon               = '';
@@ -228,17 +233,17 @@ class CPW_Gateway extends WC_Payment_Gateway {
         $fields['verify_evm_heading'] = [
             'title'       => __( 'EVM Explorer API Keys', 'crypto-payments-woo' ),
             'type'        => 'title',
-            'description' => __( 'Free API keys from each chain\'s block explorer. Only needed for chains you\'ve configured wallet addresses for. Each takes ~2 minutes to register.', 'crypto-payments-woo' ),
+            'description' => __( 'One Etherscan API key covers Ethereum, BNB Chain, Polygon, Arbitrum, Optimism and Base, though some chains need a paid Etherscan plan. Only fill in a chain\'s own field to use a different key for that chain. Avalanche uses Routescan and needs no key.', 'crypto-payments-woo' ),
         ];
 
         $evm_api_keys = [
-            'etherscan_api_key'  => [ 'Etherscan (Ethereum)', 'https://etherscan.io/apis' ],
-            'bscscan_api_key'    => [ 'BscScan (BNB Chain)', 'https://bscscan.com/apis' ],
-            'polygonscan_api_key' => [ 'PolygonScan', 'https://polygonscan.com/apis' ],
-            'arbiscan_api_key'   => [ 'Arbiscan (Arbitrum)', 'https://arbiscan.io/apis' ],
-            'optimism_api_key'   => [ 'Optimistic Etherscan', 'https://optimistic.etherscan.io/apis' ],
-            'basescan_api_key'   => [ 'BaseScan', 'https://basescan.org/apis' ],
-            'snowtrace_api_key'  => [ 'Routescan (Avalanche)', 'https://routescan.io' ],
+            'etherscan_api_key'  => [ 'Etherscan', 'https://etherscan.io/apis' ],
+            'bscscan_api_key'    => [ 'BNB Chain (optional)', 'https://etherscan.io/apis' ],
+            'polygonscan_api_key' => [ 'Polygon (optional)', 'https://etherscan.io/apis' ],
+            'arbiscan_api_key'   => [ 'Arbitrum (optional)', 'https://etherscan.io/apis' ],
+            'optimism_api_key'   => [ 'Optimism (optional)', 'https://etherscan.io/apis' ],
+            'basescan_api_key'   => [ 'Base (optional)', 'https://etherscan.io/apis' ],
+            'snowtrace_api_key'  => [ 'Routescan, Avalanche (optional)', 'https://routescan.io' ],
         ];
 
         foreach ( $evm_api_keys as $key => $info ) {
@@ -624,53 +629,35 @@ class CPW_Gateway extends WC_Payment_Gateway {
             return [ 'result' => 'failure' ];
         }
 
-        // Server-side quote verification: ensure the submitted amount matches what we quoted.
-        if ( WC()->session ) {
-            $quoted_amount  = WC()->session->get( 'cpw_quoted_amount' );
-            $quoted_network = WC()->session->get( 'cpw_quoted_network' );
-            $quoted_at      = WC()->session->get( 'cpw_quoted_at' );
-            $payment_window = WC()->session->get( 'cpw_payment_window' ) ?: 15;
-
-            if ( $quoted_amount && $quoted_network ) {
-                // Check the quote hasn't expired.
-                if ( $quoted_at && ( time() - $quoted_at ) > ( $payment_window * 60 ) ) {
-                    wc_add_notice( __( 'Your price quote has expired. Please select a cryptocurrency again to get a fresh quote.', 'crypto-payments-woo' ), 'error' );
-                    return [ 'result' => 'failure' ];
-                }
-
-                // Check the amount matches what we quoted (prevent client-side tampering).
-                if ( $crypto_amount !== $quoted_amount || $network_id !== $quoted_network ) {
-                    wc_add_notice( __( 'Payment amount mismatch. Please select a cryptocurrency again.', 'crypto-payments-woo' ), 'error' );
-                    return [ 'result' => 'failure' ];
-                }
-            }
-
-            // Clear the quote from session after use.
-            WC()->session->set( 'cpw_quoted_amount', null );
-            WC()->session->set( 'cpw_quoted_network', null );
-            WC()->session->set( 'cpw_quoted_at', null );
-            WC()->session->set( 'cpw_payment_window', null );
+        // The order must match the quote we made: same coin, same crypto amount, same fiat total.
+        $quote = WC()->session ? WC()->session->get( self::QUOTE_SESSION_KEY ) : null;
+        $error = $this->get_quote_error( $quote, $order, $network_id, $crypto_amount );
+        if ( $error ) {
+            wc_add_notice( $error, 'error' );
+            return [ 'result' => 'failure' ];
         }
+
+        WC()->session->set( self::QUOTE_SESSION_KEY, null );
 
         $networks = CPW_Networks::get_all();
-        $network = $networks[ $network_id ] ?? null;
+        $network  = $networks[ $network_id ];
 
         // Store/update payment metadata.
-        if ( $network_id ) {
-            $order->update_meta_data( '_cpw_network', $network_id );
-            $order->update_meta_data( '_cpw_wallet_address', $this->get_option( 'wallet_' . $network_id ) );
-        }
-        if ( $crypto_amount ) {
-            $order->update_meta_data( '_cpw_crypto_amount', $crypto_amount );
-        }
+        $order->update_meta_data( '_cpw_network', $network_id );
+        $order->update_meta_data( '_cpw_wallet_address', $this->get_option( 'wallet_' . $network_id ) );
+        $order->update_meta_data( '_cpw_crypto_amount', $quote['crypto_amount'] );
+        $order->update_meta_data( '_cpw_quoted_fiat', (string) $quote['fiat_amount'] );
+        $order->update_meta_data( '_cpw_quoted_currency', $quote['currency'] );
+        $order->update_meta_data( '_cpw_quoted_at', (int) $quote['quoted_at'] );
         if ( $tx_hash ) {
             $order->update_meta_data( '_cpw_tx_hash', $tx_hash );
         }
         $order->update_meta_data( '_cpw_payment_time', current_time( 'mysql' ) );
 
         // Add order note.
-        $symbol = $network ? $network['symbol'] : '';
-        $network_name = $network ? $network['name'] : $network_id;
+        $symbol        = $network['symbol'];
+        $network_name  = $network['name'];
+        $crypto_amount = $quote['crypto_amount'];
 
         if ( $tx_hash ) {
             $note = sprintf(
@@ -709,6 +696,59 @@ class CPW_Gateway extends WC_Payment_Gateway {
             'result'   => 'success',
             'redirect' => $this->get_return_url( $order ),
         ];
+    }
+
+    /**
+     * Checks an order against the customer's latest quote.
+     *
+     * @param mixed    $quote         Quote from the session.
+     * @param WC_Order $order         The order being paid.
+     * @param string   $network_id    Network the customer chose.
+     * @param string   $crypto_amount Crypto amount submitted with the order.
+     * @return string Customer-facing error, or an empty string when the order matches.
+     */
+    private function get_quote_error( $quote, $order, $network_id, $crypto_amount ) {
+        $select_again = __( 'Please select a cryptocurrency again to get a fresh quote.', 'crypto-payments-woo' );
+
+        if ( ! is_array( $quote ) || empty( $quote['crypto_amount'] ) ) {
+            return __( 'We could not find your price quote.', 'crypto-payments-woo' ) . ' ' . $select_again;
+        }
+
+        if ( ( time() - (int) $quote['quoted_at'] ) > ( (int) $quote['window'] * MINUTE_IN_SECONDS ) ) {
+            return __( 'Your price quote has expired.', 'crypto-payments-woo' ) . ' ' . $select_again;
+        }
+
+        if ( $crypto_amount !== $quote['crypto_amount'] || $network_id !== $quote['network_id'] ) {
+            return __( 'Payment amount mismatch.', 'crypto-payments-woo' ) . ' ' . $select_again;
+        }
+
+        if ( ! empty( $quote['order_id'] ) && (int) $quote['order_id'] !== $order->get_id() ) {
+            return __( 'Your price quote is for a different order.', 'crypto-payments-woo' ) . ' ' . $select_again;
+        }
+
+        if ( ! self::quote_matches_total( $quote['fiat_amount'], $quote['currency'], $order ) ) {
+            return __( 'Your order total changed after we quoted the price.', 'crypto-payments-woo' ) . ' ' . $select_again;
+        }
+
+        if ( empty( $this->get_option( 'wallet_' . $network_id ) ) ) {
+            return __( 'This cryptocurrency is not currently available for payment.', 'crypto-payments-woo' );
+        }
+
+        return '';
+    }
+
+    /**
+     * Whether a quoted fiat amount and currency match an order's total, allowing for rounding.
+     *
+     * @param mixed    $fiat_amount Quoted fiat amount.
+     * @param mixed    $currency    Quoted currency.
+     * @param WC_Order $order       The order.
+     * @return bool
+     */
+    public static function quote_matches_total( $fiat_amount, $currency, $order ) {
+        return '' !== (string) $fiat_amount
+            && $currency === $order->get_currency()
+            && abs( (float) $fiat_amount - (float) $order->get_total() ) < 0.011;
     }
 
     /**

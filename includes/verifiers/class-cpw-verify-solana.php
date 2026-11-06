@@ -2,7 +2,7 @@
 /**
  * CPW_Verify_Solana - Verifies payments on Solana (SOL and SPL tokens).
  *
- * Uses the public Solana RPC API and Solscan for transaction scanning.
+ * Uses the public Solana RPC API.
  * No API keys required (public endpoints).
  *
  * @package CryptoPaymentsWoo
@@ -15,7 +15,6 @@ if ( ! defined( 'ABSPATH' ) ) {
 class CPW_Verify_Solana {
 
     const RPC_URL       = 'https://api.mainnet-beta.solana.com';
-    const SOLSCAN_API   = 'https://public-api.solscan.io';
     const CONFIRMATIONS = 32; // Solana finality.
 
     private $settings;
@@ -47,14 +46,14 @@ class CPW_Verify_Solana {
         $is_token = ! empty( $context['network']['is_token'] );
         $decimals = $context['network']['decimals'] ?? 9;
 
-        // Get transaction details via RPC.
+        // A transaction is only returned at "finalized" commitment once it can't be rolled back.
         $result = $this->rpc_call( 'getTransaction', [
             $tx_hash,
-            [ 'encoding' => 'jsonParsed', 'maxSupportedTransactionVersion' => 0 ],
+            [ 'encoding' => 'jsonParsed', 'commitment' => 'finalized', 'maxSupportedTransactionVersion' => 0 ],
         ]);
 
-        if ( ! $result || isset( $result['error'] ) ) {
-            return [ 'status' => 'pending', 'message' => 'Transaction not found or not yet confirmed.' ];
+        if ( ! $result || isset( $result['error'] ) || empty( $result['result'] ) ) {
+            return [ 'status' => 'pending', 'message' => 'Transaction not found or not yet finalized.' ];
         }
 
         // Check if transaction was successful.
@@ -62,10 +61,6 @@ class CPW_Verify_Solana {
         if ( ( $meta['err'] ?? null ) !== null ) {
             return [ 'status' => 'failed', 'message' => 'Transaction failed on-chain.' ];
         }
-
-        // Check slot/confirmation.
-        $slot = $result['result']['slot'] ?? 0;
-        $confirmation_status = $result['result']['meta']['confirmationStatus'] ?? '';
 
         // For tokens, check the token transfers.
         if ( $is_token ) {
@@ -78,20 +73,14 @@ class CPW_Verify_Solana {
             return [ 'status' => 'failed', 'message' => 'Transaction does not match expected payment.' ];
         }
 
-        // Solana transactions are either finalized or not.
-        if ( $confirmation_status === 'finalized' ) {
-            return [
-                'status'        => 'confirmed',
-                'tx_hash'       => $tx_hash,
-                'confirmations' => self::CONFIRMATIONS,
-                'required_confirmations' => self::CONFIRMATIONS,
-            ];
+        if ( ! CPW_Verifier::tx_is_usable( $context, $tx_hash, (int) ( $result['result']['blockTime'] ?? 0 ) ) ) {
+            return [ 'status' => 'failed', 'message' => 'Transaction predates this order or already paid another order.' ];
         }
 
         return [
-            'status'        => 'found',
+            'status'        => 'confirmed',
             'tx_hash'       => $tx_hash,
-            'confirmations' => 0,
+            'confirmations' => self::CONFIRMATIONS,
             'required_confirmations' => self::CONFIRMATIONS,
         ];
     }
@@ -177,9 +166,24 @@ class CPW_Verify_Solana {
         $expected_amount = (float) $context['crypto_amount'];
         $is_token = ! empty( $context['network']['is_token'] );
 
+        // Token transfers land on the wallet's token account, which has its own transaction history.
+        $scan_address = $wallet;
+        if ( $is_token ) {
+            $accounts = $this->rpc_call( 'getTokenAccountsByOwner', [
+                $wallet,
+                [ 'mint' => $context['network']['token_contract'] ?? '' ],
+                [ 'encoding' => 'jsonParsed' ],
+            ]);
+
+            $scan_address = $accounts['result']['value'][0]['pubkey'] ?? '';
+            if ( ! $scan_address ) {
+                return [ 'status' => 'pending', 'message' => 'No token account found for this wallet.' ];
+            }
+        }
+
         // Use Solana RPC getSignaturesForAddress for recent transactions.
         $result = $this->rpc_call( 'getSignaturesForAddress', [
-            $wallet,
+            $scan_address,
             [ 'limit' => 20 ],
         ]);
 
@@ -196,6 +200,11 @@ class CPW_Verify_Solana {
             $signature = $sig_info['signature'] ?? '';
             if ( ! $signature ) {
                 continue;
+            }
+
+            // Newest first, so everything after this is older than the quote too.
+            if ( ! empty( $sig_info['blockTime'] ) && $sig_info['blockTime'] < $context['min_tx_time'] ) {
+                break;
             }
 
             // Fetch the full transaction to check amounts.

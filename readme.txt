@@ -2,7 +2,7 @@
 Requires at least: 5.8
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 1.3.1
+Stable tag: 1.3.2
 License: GPLv2 or later
 
 Accept cryptocurrency payments directly to your own wallets, with live price conversion, QR codes and on-chain verification.
@@ -25,6 +25,14 @@ Customers pay straight to your own wallet addresses: no payment processor and no
 3. Enable the gateway and enter a wallet address for each network you want to accept.
 
 == Changelog ==
+
+= 1.3.2 =
+* Security: stricter checks when quoting prices and verifying payments. Update as soon as possible.
+* Fix: automatic verification on Ethereum, Polygon and Arbitrum now uses Etherscan's current API. BNB Chain, Optimism and Base need a paid Etherscan plan.
+* Fix: Solana and USDT on TRON payments now confirm automatically.
+* Fix: the order-pay page now shows a price when the cart is empty.
+* Fix: choosing a coin before block checkout finished loading no longer shows an error.
+* Changed: orders placed before this version are no longer auto-completed; check those manually.
 
 = 1.3.1 =
 * Fix: a checkout error on sites running PHP 7.4 with WordPress 5.8.

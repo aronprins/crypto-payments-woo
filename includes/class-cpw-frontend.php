@@ -72,12 +72,24 @@ class CPW_Frontend {
             ? absint( $gateway_settings['payment_window'] )
             : 15;
 
+        // On the order-pay page the quote is for this order. The URL key proves the visitor may pay it.
+        $pay_order = null;
+        if ( is_wc_endpoint_url( 'order-pay' ) ) {
+            $candidate = wc_get_order( absint( get_query_var( 'order-pay' ) ) );
+            // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- The order key is the credential here.
+            $url_key = sanitize_text_field( wp_unslash( $_GET['key'] ?? '' ) );
+            if ( $candidate && $url_key && hash_equals( $candidate->get_order_key(), $url_key ) ) {
+                $pay_order = $candidate;
+            }
+        }
+
         wp_localize_script( 'cpw-checkout', 'cpw_data', [
             'ajax_url'                 => admin_url( 'admin-ajax.php' ),
             'nonce_price'              => wp_create_nonce( 'cpw_get_crypto_price' ),
-            'nonce_confirm'            => wp_create_nonce( 'cpw_confirm_payment' ),
             'walletconnect_project_id' => $walletconnect_project_id,
             'payment_window'           => $payment_window,
+            'order_id'                 => $pay_order ? $pay_order->get_id() : 0,
+            'order_key'                => $pay_order ? $pay_order->get_order_key() : '',
             'i18n_no_results'          => __( 'No cryptocurrencies found.', 'crypto-payments-woo' ),
         ]);
     }

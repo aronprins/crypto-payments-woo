@@ -34,7 +34,8 @@
      * Main payment content component rendered when the user selects crypto payments.
      */
     const Content = (props) => {
-        const { eventRegistration, emitResponse } = props;
+        const { eventRegistration, emitResponse, billing } = props;
+        const cartTotal = billing && billing.cartTotal ? billing.cartTotal.value : 0;
         const { onPaymentSetup } = eventRegistration;
 
         const [selectedNetwork, setSelectedNetwork] = useState('');
@@ -83,7 +84,7 @@
                 return;
             }
             fetchPrice(selectedNetwork);
-        }, [selectedNetwork]);
+        }, [selectedNetwork, cartTotal]);
 
         // Timer countdown.
         useEffect(() => {
@@ -124,14 +125,6 @@
         }, []);
 
         const fetchPrice = (networkId) => {
-            const fiatAmount = getOrderTotal();
-            const currency = getStoreCurrency();
-
-            if (!fiatAmount || fiatAmount <= 0) {
-                setError('Could not determine order total.');
-                return;
-            }
-
             setLoading(true);
             setError('');
             setPaymentData(null);
@@ -140,8 +133,6 @@
             formData.append('action', 'cpw_get_crypto_price');
             formData.append('nonce', nonce);
             formData.append('network_id', networkId);
-            formData.append('fiat_amount', fiatAmount);
-            formData.append('currency', currency);
 
             fetch(ajaxUrl, { method: 'POST', body: formData })
                 .then((res) => res.json())
@@ -201,63 +192,6 @@
                 setCopiedField(field);
                 setTimeout(() => setCopiedField(''), 2000);
             }
-        };
-
-        const getOrderTotal = () => {
-            // Try multiple selectors for the block checkout total.
-            const selectors = [
-                '.wc-block-components-totals-footer-item .wc-block-formatted-money-amount',
-                '.wc-block-components-totals-footer-item .wc-block-components-formatted-money-amount',
-                '.wp-block-woocommerce-checkout-totals-block .wc-block-formatted-money-amount:last-child',
-                '.wc-block-components-order-summary .wc-block-formatted-money-amount',
-                '.order-total .woocommerce-Price-amount bdi',
-                '.order-total .amount',
-            ];
-
-            for (const selector of selectors) {
-                const elements = document.querySelectorAll(selector);
-                if (elements.length > 0) {
-                    // Get the last match (usually the grand total).
-                    const el = elements[elements.length - 1];
-                    const text = el.textContent || el.innerText;
-                    return parseAmount(text);
-                }
-            }
-
-            return 0;
-        };
-
-        const parseAmount = (text) => {
-            let cleaned = text.replace(/[^\d.,]/g, '');
-
-            if (cleaned.indexOf(',') > -1 && cleaned.indexOf('.') > -1) {
-                if (cleaned.lastIndexOf(',') > cleaned.lastIndexOf('.')) {
-                    cleaned = cleaned.replace(/\./g, '').replace(',', '.');
-                } else {
-                    cleaned = cleaned.replace(/,/g, '');
-                }
-            } else if (cleaned.indexOf(',') > -1) {
-                const parts = cleaned.split(',');
-                if (parts[parts.length - 1].length === 3 && parts.length === 2) {
-                    cleaned = cleaned.replace(',', '');
-                } else {
-                    cleaned = cleaned.replace(',', '.');
-                }
-            }
-
-            return parseFloat(cleaned) || 0;
-        };
-
-        const getStoreCurrency = () => {
-            if (window.wcSettings && window.wcSettings.currency && window.wcSettings.currency.code) {
-                return window.wcSettings.currency.code;
-            }
-            // Try wc store data.
-            try {
-                const storeData = window.wc.wcSettings.getSetting('currency', {});
-                if (storeData.code) return storeData.code;
-            } catch (e) {}
-            return 'USD';
         };
 
         const formatTimer = (seconds) => {
@@ -629,9 +563,6 @@
         // Payment info.
         let paymentInfoEl = null;
         if (paymentData) {
-            const fiatAmount = getOrderTotal();
-            const currency = getStoreCurrency();
-
             paymentInfoEl = els(
                 'div',
                 { className: 'cpw-block-payment-info' },
@@ -667,7 +598,7 @@
                     els(
                         'div',
                         { className: 'cpw-block-fiat-equiv' },
-                        '≈ ' + formatCurrency(fiatAmount, currency)
+                        '≈ ' + formatCurrency(paymentData.fiat_amount, paymentData.currency)
                     )
                 ),
 
