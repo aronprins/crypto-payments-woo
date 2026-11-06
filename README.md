@@ -41,6 +41,7 @@ Accept cryptocurrency payments directly to your own wallets — no third-party p
 - **WooCommerce Blocks support** — works with both classic and block-based checkout
 - **WooCommerce HPOS compatible** — works with High-Performance Order Storage
 - **Mobile-responsive** — clean checkout UI on all devices
+- **Updates from GitHub** — new releases appear under Dashboard → Updates like any other plugin, with optional automatic updates
 
 ## Installation
 
@@ -199,6 +200,18 @@ The new coin will automatically appear in settings (for wallet address) and at c
 - WordPress 5.8+
 - WooCommerce 6.0+
 - PHP 7.4+
+
+## Releasing
+
+The plugin updates itself from this repo's GitHub releases.
+
+1. Set the same version in the `Version:` header and `CPW_VERSION` in `crypto-payments-woo.php`, and in `Stable tag:` in `readme.txt`.
+2. Add a `= x.y.z =` entry at the top of `== Changelog ==` in `readme.txt`. It becomes the release notes.
+3. Commit to `main`, then tag and push: `git tag vx.y.z && git push origin vx.y.z`.
+
+The Release workflow fails if the versions don't match the tag or the changelog entry is missing. A tag with a hyphen (`v1.3.0-beta.1`) becomes a pre-release, which sites ignore; its version numbers and changelog entry must match the part before the hyphen.
+
+Installed copies depend on these staying the same, or they stop updating: the repo name, the `Update URI` header, the asset names `crypto-payments-woo.zip` and `update.json`, the zip's top folder `crypto-payments-woo/`, and the existing `update.json` fields.
 
 ## License
 

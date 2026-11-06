@@ -262,6 +262,7 @@ class CPW_Gateway extends WC_Payment_Gateway {
      */
     public function admin_options() {
         parent::admin_options();
+        CPW_Updater::render_settings_section();
         $prefix = 'woocommerce_' . esc_js( $this->id ) . '_token_';
         ?>
         <style>
